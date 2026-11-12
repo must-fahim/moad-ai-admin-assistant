@@ -21,6 +21,14 @@ const advertisers = [
   ["33333333-3333-4333-8333-333333333333", "Blue Depot", "busan@bluedepot.example", "051-000-3000", "Mina Cho", "010-0000-3001", "300-00-30001", "pending_approval"],
   ["44444444-4444-4444-8444-444444444444", "Northline Ads", "team@northline.example", "02-000-4000", "Owen Blake", "010-0000-4001", "400-00-40001", "rejected"],
   ["55555555-5555-4555-8555-555555555555", "Paper Kite", "ads@paperkite.example", "02-000-5000", "Hana Cho", "010-0000-5001", "500-00-50001", "blacklist"],
+  ["11111111-1111-4111-8111-111111111116", "Morning Paper", "hello@morningpaper.example", "02-000-6000", "Sora Lee", "010-0000-6001", "600-00-60001", "pending_approval"],
+  ["11111111-1111-4111-8111-111111111117", "Seoul Lights Co", "ads@seoullights.example", "02-000-7000", "Mina Kang", "010-0000-7001", "700-00-70001", "pending_approval"],
+  ["11111111-1111-4111-8111-111111111118", "Busan Harbor Ads", "team@busanharbor.example", "051-000-8000", "Joon Park", "010-0000-8001", "800-00-80001", "pending_approval"],
+  ["11111111-1111-4111-8111-111111111119", "Mapo Studio", "hello@mapostudio.example", "02-000-9000", "Hana Yoon", "010-0000-9001", "900-00-90001", "pending_approval"],
+  ["11111111-1111-4111-8111-11111111111a", "Night Owl Media", "ads@nightowl.example", "02-000-1100", "Rin Cho", "010-0000-1101", "110-00-11001", "blacklist"],
+  ["11111111-1111-4111-8111-11111111111b", "Grey Market Co", "team@greymarket.example", "02-000-1200", "Sofia Han", "010-0000-1201", "120-00-12001", "blacklist"],
+  ["11111111-1111-4111-8111-11111111111c", "Closed Banner", "hello@closedbanner.example", "02-000-1300", "Jae Min", "010-0000-1301", "130-00-13001", "blacklist"],
+  ["11111111-1111-4111-8111-11111111111d", "Old Pier Ads", "ads@oldpier.example", "051-000-1400", "Elena Cho", "010-0000-1401", "140-00-14001", "blacklist"],
 ] as const;
 
 const partners = [
@@ -30,6 +38,15 @@ const partners = [
   ["66666666-6666-4666-8666-666666666664", "4321-200-011", "Hana Cho", "010-2000-0011", "경기11다2011", "Cargo / Large", false, "Gyeonggi > Seongnam-si", "under_review"],
   ["66666666-6666-4666-8666-666666666665", "4321-300-020", "Deniz Aksoy", "010-3000-0020", "서울20라3020", "Top / Small", true, "Seoul > Mapo-gu", "rejected"],
   ["66666666-6666-4666-8666-666666666666", "4321-300-021", "Owen Blake", "010-3000-0021", "인천21마3021", "Cargo / Extra Small", false, "Incheon > All", "blacklist"],
+  ["66666666-6666-4666-8666-666666666667", "4321-400-030", "Aera Moon", "010-4000-0030", null, null, false, "Seoul > Jongno-gu", "approved"],
+  ["66666666-6666-4666-8666-666666666668", "4321-400-031", "Bora Lee", "010-4000-0031", null, null, true, "Busan > Haeundae-gu", "approved"],
+  ["66666666-6666-4666-8666-666666666669", "4321-400-032", "Kenji Sato", "010-4000-0032", null, null, false, "Incheon > Jung-gu", "under_review"],
+  ["66666666-6666-4666-8666-66666666666a", "4321-400-033", "Yuna Choi", "010-4000-0033", null, null, true, "Gyeonggi > Suwon-si", "approved"],
+  ["66666666-6666-4666-8666-66666666666b", "4321-400-034", "Noah Kim", "010-4000-0034", null, null, false, "Seoul > Yongsan-gu", "approved"],
+  ["66666666-6666-4666-8666-66666666666c", "4321-500-040", "Rin Park", "010-5000-0040", "서울40바5040", "Top / Large", true, "Seoul > Songpa-gu", "blacklist"],
+  ["66666666-6666-4666-8666-66666666666d", "4321-500-041", "Sofia Han", "010-5000-0041", "부산41사5041", "Top / Small", false, "Busan > All", "blacklist"],
+  ["66666666-6666-4666-8666-66666666666e", "4321-500-042", "Jae Min", "010-5000-0042", "인천42아5042", "Cargo / Large", true, "Incheon > All", "blacklist"],
+  ["66666666-6666-4666-8666-66666666666f", "4321-500-043", "Elena Cho", "010-5000-0043", "경기43자5043", "Top / Medium", false, "Gyeonggi > Seongnam-si", "blacklist"],
 ] as const;
 
 const campaigns = [
@@ -51,6 +68,9 @@ const applications = [
   ["88888888-8888-4888-8888-888888888883", "77777777-7777-4777-8777-777777777772", "66666666-6666-4666-8666-666666666662", "under_review", "Seoul > Gangbuk-gu"],
   ["88888888-8888-4888-8888-888888888884", "77777777-7777-4777-8777-777777777776", "66666666-6666-4666-8666-666666666664", "under_review", "Gyeonggi > Seongnam-si"],
   ["88888888-8888-4888-8888-888888888885", "77777777-7777-4777-8777-777777777774", "66666666-6666-4666-8666-666666666663", "preparing", "Busan > All"],
+  ["88888888-8888-4888-8888-888888888886", "77777777-7777-4777-8777-777777777777", "66666666-6666-4666-8666-666666666667", "under_review", "Seoul > Jongno-gu"],
+  ["88888888-8888-4888-8888-888888888887", "77777777-7777-4777-8777-777777777777", "66666666-6666-4666-8666-666666666668", "under_review", "Busan > Haeundae-gu"],
+  ["88888888-8888-4888-8888-888888888888", "77777777-7777-4777-8777-77777777777a", "66666666-6666-4666-8666-666666666669", "under_review", "Incheon > Jung-gu"],
 ] as const;
 
 const settlements = [

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Button, Drawer, Form, Input, Modal, Select, Switch, Table, Tag } from "antd";
 import toast from "react-hot-toast";
+import { Skeleton } from "@/components/loader";
 import { COUNTRIES } from "@/lib/countries";
 
 type AdminRow = {
@@ -81,12 +82,14 @@ export function AdminManager({ open, onClose, currentId }: { open: boolean; onCl
   }
 
   return (
-    <Drawer title="Administrators" open={open} onClose={onClose} width={760} extra={<Button type="primary" onClick={() => setModalOpen(true)}>Add admin</Button>}>
+    <Drawer title="Administrators" open={open} onClose={onClose} size={760} extra={<Button type="primary" onClick={() => setModalOpen(true)}>Add admin</Button>}>
+      {loading && admins.length === 0 ? <Skeleton rows={7} /> : null}
       <Table
         rowKey="id"
-        loading={loading}
+        loading={loading && admins.length > 0}
         pagination={false}
         dataSource={admins}
+        style={loading && admins.length === 0 ? { display: "none" } : undefined}
         columns={[
           { title: "Name", dataIndex: "name", render: (name: string, admin: AdminRow) => <>{name} {admin.is_primary ? <Tag>Primary</Tag> : null}</> },
           { title: "Phone", dataIndex: "phone", render: (value: string | null) => value || "—" },

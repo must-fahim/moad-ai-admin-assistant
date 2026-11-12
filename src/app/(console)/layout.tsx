@@ -1,11 +1,11 @@
 import { redirect } from "next/navigation";
-import { GuideScreen } from "@/components/guide-screen";
+import { AppShell } from "@/components/app-shell";
 import { getCurrentAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-export default async function GuidePage() {
+export default async function ConsoleLayout({ children }: { children: React.ReactNode }) {
   const admin = await getCurrentAdmin();
   if (!admin) redirect("/login");
-  return <GuideScreen admin={admin} />;
+  return <AppShell admin={admin}>{children}</AppShell>;
 }

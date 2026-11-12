@@ -3,9 +3,8 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { GUIDE_GROUPS, GUIDE_QUESTION_COUNT, type GuideGroup } from "@/lib/guide";
-import type { AdminProfile } from "@/lib/chat-types";
 
-export function GuideScreen({ admin }: { admin: AdminProfile }) {
+export function GuideScreen() {
   const [query, setQuery] = useState("");
   const needle = query.trim().toLowerCase();
 
@@ -22,17 +21,14 @@ export function GuideScreen({ admin }: { admin: AdminProfile }) {
   const shown = groups.reduce((total, group) => total + group.questions.length, 0);
 
   return (
-    <div className="guide">
-      <header className="guide-bar">
-        <div>
-          <p className="mark">MOAD</p>
-          <h1>Question guide</h1>
-        </div>
-        <div className="stage-actions">
-          <Link className="guide-back" href="/">Back to assistant</Link>
-          <span className="who guide-who">{admin.name}<span>{admin.username}</span></span>
-        </div>
-      </header>
+      <section className="stage">
+        <header className="stage-bar">
+          <div className="stage-title">
+            <strong>Question guide</strong>
+            <span>{GUIDE_QUESTION_COUNT} approved questions. Reads run now. Changes wait for confirmation.</span>
+          </div>
+        </header>
+        <div className="stage-scroll">
       <div className="guide-body">
         <div className="guide-intro">
           <p>
@@ -62,7 +58,8 @@ export function GuideScreen({ admin }: { admin: AdminProfile }) {
           <GuideSection key={group.id} group={group} />
         ))}
       </div>
-    </div>
+        </div>
+      </section>
   );
 }
 

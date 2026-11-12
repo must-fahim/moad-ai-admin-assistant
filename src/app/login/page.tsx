@@ -39,24 +39,36 @@ export default function LoginPage() {
   return (
     <main className="login">
       <section className="login-story">
-        <p className="mark">MOAD</p>
+        <div className="brand light">
+          <span className="brand-mark" aria-hidden="true">M</span>
+          <div>
+            <p className="mark">MOAD</p>
+            <strong>Admin assistant</strong>
+          </div>
+        </div>
         <div>
-          <h1>Admin assistant</h1>
-          <p>Ask for a campaign, a cargo partner, or a settlement. Every change waits for an explicit confirmation.</p>
+          <h1>Run the operation from one conversation.</h1>
+          <p>Ask for a campaign, a cargo partner, or a settlement. Every change waits until you confirm one record.</p>
+          <ul className="login-points">
+            <li><strong>Reads</strong><span>Counts and searches run as soon as you ask.</span></li>
+            <li><strong>Writes</strong><span>Nothing is stored until you confirm a single record.</span></li>
+            <li><strong>Audit</strong><span>Confirm, cancel, and refuse are each written to the log.</span></li>
+          </ul>
         </div>
         <p className="fine">Synthetic data only. This assistant does not connect to the MOAD production database.</p>
       </section>
       <section className="login-panel">
         <div className="login-card">
-          <h2>Sign in</h2>
-          <p className="lede">MOAD Admin. There is no public registration.</p>
+          <p className="eyebrow">Sign in</p>
+          <h2>Welcome back</h2>
+          <p className="lede">Administrator access only. There is no public registration.</p>
           {setup ? <div className="setup-note">{setup}</div> : null}
           <Form layout="vertical" requiredMark={false} onFinish={submit}>
             <Form.Item name="username" label="Username" rules={[{ required: true, message: "Enter your username." }]}>
-              <Input autoComplete="username" size="large" />
+              <Input autoComplete="username" size="large" placeholder="moad_ai_assistant" />
             </Form.Item>
             <Form.Item name="password" label="Password" rules={[{ required: true, message: "Enter your password." }]}>
-              <Input.Password autoComplete="current-password" size="large" />
+              <Input.Password autoComplete="current-password" size="large" placeholder="Enter your password" />
             </Form.Item>
             <Button type="primary" htmlType="submit" size="large" block loading={loading}>Sign in</Button>
           </Form>

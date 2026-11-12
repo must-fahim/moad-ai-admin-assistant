@@ -4,42 +4,50 @@ import { useEffect, useRef, useState } from "react";
 import { Button, Drawer } from "antd";
 import toast from "react-hot-toast";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { AdminManager } from "@/components/admin-manager";
-import type { AdminProfile, ChatMessage, ChatPayload } from "@/lib/chat-types";
+import { useShellActions } from "@/components/app-shell";
+import { Loader, SkeletonCards } from "@/components/loader";
+import type { ChatMessage, ChatPayload } from "@/lib/chat-types";
 
-const PROMPTS = [
-  "How many campaigns are in progress?",
-  "How many advertisers are approved?",
-  "Find cargo partners named Minho Park",
-  "Stop the Harbor Night campaign",
-  "Summarize cargo settlements for 2026-11",
+const STARTERS = [
+  { label: "Count", text: "How many campaigns are in progress?" },
+  { label: "Search", text: "Find cargo partners named Minho Park" },
+  { label: "Settlement", text: "Summarize cargo settlements for 2026-11" },
+  { label: "Advertisers", text: "How many advertisers are approved?" },
 ];
 
-export function ChatScreen({ admin, initialDraft = "" }: { admin: AdminProfile; initialDraft?: string }) {
-  const router = useRouter();
+export function ChatScreen({ initialDraft = "" }: { initialDraft?: string }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
   const [draft, setDraft] = useState(initialDraft);
 
   useEffect(() => {
     if (initialDraft) setDraft(initialDraft);
   }, [initialDraft]);
   const [busy, setBusy] = useState(false);
-  const [adminsOpen, setAdminsOpen] = useState(false);
   const [activityOpen, setActivityOpen] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [activityLoading, setActivityLoading] = useState(false);
   const [events, setEvents] = useState<{ id: string; event: string; summary: string; createdAt: string; adminName: string }[]>([]);
-  const bottom = useRef<HTMLDivElement>(null);
+  const transcript = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    fetch("/api/chat").then(async (response) => {
-      const body = await response.json();
-      if (response.ok) setMessages(body.messages);
-    });
+    let cancelled = false;
+    fetch("/api/chat")
+      .then(async (response) => {
+        const body = await response.json();
+        if (!cancelled && response.ok) setMessages(body.messages);
+      })
+      .finally(() => {
+        if (!cancelled) setHistoryLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
-    bottom.current?.scrollIntoView({ block: "end" });
+    const node = transcript.current;
+    if (!node) return;
+    node.scrollTop = node.scrollHeight;
   }, [messages, busy]);
 
   async function send(text: string, resume?: ChatPayload["resume"] & { id?: string }) {
@@ -47,7 +55,6 @@ export function ChatScreen({ admin, initialDraft = "" }: { admin: AdminProfile; 
     if (!message || busy) return;
     setDraft("");
     setBusy(true);
-    setMenuOpen(false);
     const response = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -86,78 +93,78 @@ export function ChatScreen({ admin, initialDraft = "" }: { admin: AdminProfile; 
     setMessages([]);
   }
 
-  async function logout() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    router.replace("/login");
-    router.refresh();
-  }
-
   async function openActivity() {
     setActivityOpen(true);
-    const response = await fetch("/api/audit");
-    const body = await response.json();
-    if (!response.ok) {
-      toast.error(body.error || "Could not load the audit log.");
-      return;
+    setActivityLoading(true);
+    try {
+      const response = await fetch("/api/audit");
+      const body = await response.json();
+      if (!response.ok) {
+        toast.error(body.error || "Could not load the audit log.");
+        return;
+      }
+      setEvents(body.events);
+    } finally {
+      setActivityLoading(false);
     }
-    setEvents(body.events);
   }
 
+  useShellActions({ onNewChat: clearChat, onPrompt: send });
+
   return (
-    <div className="shell">
-      <aside className="sidebar">
-        <div>
-          <p className="mark">MOAD</p>
-          <h1>Admin assistant</h1>
-          <p className="quiet">Counts run immediately. A change waits until you confirm one record.</p>
-        </div>
-        <button className="ghost-button" onClick={clearChat} type="button">New chat</button>
-        <Link className="ghost-button" href="/guide">Question guide</Link>
-        <div className="prompt-list">
-          {PROMPTS.map((prompt) => (
-            <button key={prompt} type="button" onClick={() => send(prompt)}>{prompt}</button>
-          ))}
-        </div>
-        <div className="sidebar-foot">
-          <div className="who">{admin.name}<span>{admin.username}</span></div>
-          <button className="ghost-button" type="button" onClick={() => setAdminsOpen(true)}>Administrators</button>
-          <button className="ghost-button" type="button" onClick={logout}>Log out</button>
-        </div>
-      </aside>
+    <>
       <section className="stage">
         <header className="stage-bar">
-          <strong>Assistant</strong>
+          <div className="stage-title">
+            <strong>Assistant</strong>
+            <span>Ask in plain language. A change waits until you confirm one record.</span>
+          </div>
           <div className="stage-actions">
-            <Button className="mobile-only" onClick={() => setMenuOpen(true)}>Menu</Button>
-            <Button onClick={() => router.push("/guide")}>Guide</Button>
             <Button onClick={openActivity}>Activity</Button>
-            <Button onClick={() => setAdminsOpen(true)}>Admins</Button>
           </div>
         </header>
-        <div className="transcript">
+        <div className="transcript" ref={transcript} aria-busy={historyLoading || busy}>
           <div className="thread">
-            {messages.length === 0 ? (
+            {historyLoading ? <HistorySkeleton /> : null}
+            {!historyLoading && messages.length === 0 ? (
               <div className="empty">
+                <p className="eyebrow">MOAD assistant</p>
                 <h2>What needs doing?</h2>
                 <p>Ask for a count, a name, or a change. Shared names come back as a list, and nothing is written until you confirm. The <Link href="/guide">question guide</Link> lists every approved function.</p>
+                <div className="starters">
+                  {STARTERS.map((starter) => (
+                    <button key={starter.text} type="button" onClick={() => send(starter.text)}>
+                      <span>{starter.label}</span>
+                      {starter.text}
+                    </button>
+                  ))}
+                </div>
               </div>
             ) : null}
             {messages.map((message) => (
               <article key={message.id} className={`bubble ${message.role}`}>
-                <div className="bubble-body">
-                  {message.content}
-                  <Result payload={message.payload} busy={busy} onChoose={(match) => {
-                    if (!message.payload?.resume) return;
-                    send(`Use ${match.label}`, {
-                      action: message.payload.resume.action,
-                      args: { ...message.payload.resume.args, id: match.id },
-                    });
-                  }} onDecide={decide} />
+                {message.role === "assistant" ? <span className="bubble-avatar" aria-hidden="true">M</span> : null}
+                <div className="bubble-stack">
+                  <div className="bubble-body">
+                    {message.content}
+                    <Result payload={message.payload} busy={busy} onChoose={(match) => {
+                      if (!message.payload?.resume) return;
+                      send(`Use ${match.label}`, {
+                        action: message.payload.resume.action,
+                        args: { ...message.payload.resume.args, id: match.id },
+                      });
+                    }} onDecide={decide} />
+                  </div>
+                  <time dateTime={message.createdAt}>{formatTime(message.createdAt)}</time>
                 </div>
               </article>
             ))}
-            {busy ? <article className="bubble assistant"><div className="bubble-body">Checking the records…</div></article> : null}
-            <div ref={bottom} />
+            {busy ? (
+              <article className="bubble assistant">
+                <span className="bubble-avatar" aria-hidden="true">M</span>
+                <div className="bubble-body"><Loader pulse label="Checking the records" /></div>
+              </article>
+            ) : null}
           </div>
         </div>
         <div className="composer-wrap">
@@ -176,31 +183,41 @@ export function ChatScreen({ admin, initialDraft = "" }: { admin: AdminProfile; 
             />
             <Button type="primary" htmlType="submit" loading={busy}>Send</Button>
           </form>
+          <p className="composer-hint">Enter to send. Shift+Enter for a new line.</p>
         </div>
       </section>
-      <AdminManager open={adminsOpen} onClose={() => setAdminsOpen(false)} currentId={admin.id} />
-      <Drawer title="Audit log" open={activityOpen} onClose={() => setActivityOpen(false)} width={460}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {events.length === 0 ? <p>No confirm, cancel, or refusal has been recorded yet.</p> : null}
-          {events.map((event) => (
-            <article key={event.id} style={{ borderBottom: "1px solid #eee8de", paddingBottom: 10 }}>
-              <strong style={{ textTransform: "capitalize" }}>{event.event}</strong>
-              <div style={{ color: "#6d655c", fontSize: 13 }}>{event.adminName} · {new Date(event.createdAt).toLocaleString()}</div>
-              <p style={{ margin: "6px 0 0" }}>{event.summary}</p>
-            </article>
-          ))}
-        </div>
+      <Drawer title="Audit log" open={activityOpen} onClose={() => setActivityOpen(false)} size={460}>
+        {activityLoading ? <SkeletonCards count={4} /> : (
+          <div className="audit-list">
+            {events.length === 0 ? <p className="audit-empty">No confirm, cancel, or refusal has been recorded yet.</p> : null}
+            {events.map((event) => (
+              <article key={event.id} className="audit-item">
+                <strong>{event.event}</strong>
+                <div>{event.adminName} · {new Date(event.createdAt).toLocaleString()}</div>
+                <p>{event.summary}</p>
+              </article>
+            ))}
+          </div>
+        )}
       </Drawer>
-      <Drawer title="Menu" open={menuOpen} onClose={() => setMenuOpen(false)}>
-        <Link className="guide-menu-link" href="/guide" onClick={() => setMenuOpen(false)}>Question guide</Link>
-        <div className="prompt-list">
-          {PROMPTS.map((prompt) => (
-            <button key={prompt} type="button" onClick={() => send(prompt)} style={{ color: "#1c1915", borderColor: "#e4dfd6" }}>{prompt}</button>
-          ))}
-        </div>
-      </Drawer>
+    </>
+  );
+}
+
+function HistorySkeleton() {
+  return (
+    <div className="history-skeleton" aria-hidden="true">
+      <div className="sk-bubble left"><span /><span /></div>
+      <div className="sk-bubble right"><span /></div>
+      <div className="sk-bubble left"><span /><span /><span /></div>
     </div>
   );
+}
+
+function formatTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
 function Result({
@@ -235,7 +252,7 @@ function Result({
             {confirmation.lines.map((line) => (
               <div key={line.label} style={{ display: "contents" }}>
                 <span>{line.label}</span>
-                <b style={{ color: "#1c1915", fontWeight: 560 }}>{line.value}</b>
+                <b>{line.value}</b>
               </div>
             ))}
           </div>
@@ -245,10 +262,11 @@ function Result({
               <Button disabled={busy} onClick={() => onDecide("cancel", confirmation.pendingActionId)}>Cancel</Button>
               <Button disabled={busy} onClick={() => onDecide("refuse", confirmation.pendingActionId)}>Refuse</Button>
             </div>
-          ) : <span className="tag">{confirmation.state}</span>}
+          ) : <span className={`tag ${confirmation.state}`}>{confirmation.state}</span>}
         </div>
       ) : null}
       {!payload.matches && payload.rows && payload.rows.length > 0 && payload.columns ? (
+        <div className="result-frame">
         <table className="result-table">
           <thead>
             <tr>{payload.columns.map((column) => <th key={column.key}>{column.title}</th>)}</tr>
@@ -259,6 +277,7 @@ function Result({
             ))}
           </tbody>
         </table>
+        </div>
       ) : null}
     </>
   );
