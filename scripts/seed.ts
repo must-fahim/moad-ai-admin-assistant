@@ -158,7 +158,7 @@ if (!url || !key) {
 
 const supabase = createClient(url, key, {
   auth: { persistSession: false, autoRefreshToken: false },
-  realtime: { transport: ws },
+  realtime: { transport: ws as never },
 });
 seed(supabase)
   .then(() => console.log("Seeded the MOAD admin database."))

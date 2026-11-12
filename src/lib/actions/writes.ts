@@ -43,7 +43,7 @@ function ambiguous(action: string, args: Args, rows: Row[], noun: string, format
   const shown = Math.min(rows.length, 20);
   return {
     kind: "matches",
-    summary: `${rows.length} ${noun} match. Choose one record. I will not open a confirmation until the choice is unique.`,
+    summary: `${rows.length} ${noun} match. Showing ${shown}. Choose one record. I will not open a confirmation until the choice is unique.`,
     matches: present(rows, format),
     total: rows.length,
     resume: { action, args },

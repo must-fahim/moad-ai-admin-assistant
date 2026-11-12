@@ -10,7 +10,20 @@ type Filter = {
 
 type Column = { key: string; title: string };
 
-function applyFilters(query: any, args: Args, filters: Filter[]) {
+type QueryResult = {
+  data: Row[] | null;
+  error: { message: string } | null;
+  count: number | null;
+};
+
+type FilterQuery = {
+  eq: (column: string, value: string | number | boolean) => FilterQuery;
+  ilike: (column: string, value: string) => FilterQuery;
+  limit: (count: number) => PromiseLike<QueryResult>;
+  then: PromiseLike<QueryResult>["then"];
+};
+
+function applyFilters(query: FilterQuery, args: Args, filters: Filter[]) {
   let next = query;
   const applied: string[] = [];
   for (const filter of filters) {

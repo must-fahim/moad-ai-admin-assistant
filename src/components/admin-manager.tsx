@@ -21,20 +21,26 @@ export function AdminManager({ open, onClose, currentId }: { open: boolean; onCl
   const [creating, setCreating] = useState(false);
   const [form] = Form.useForm();
 
-  async function load() {
-    setLoading(true);
-    const response = await fetch("/api/admins");
-    const body = await response.json();
-    setLoading(false);
-    if (!response.ok) {
-      toast.error(body.error || "Could not load admins.");
-      return;
-    }
-    setAdmins(body.admins);
-  }
-
   useEffect(() => {
-    if (open) load();
+    if (!open) return;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      if (!cancelled) setLoading(true);
+    }, 0);
+    void fetch("/api/admins").then(async (response) => {
+      const body = await response.json();
+      if (cancelled) return;
+      setLoading(false);
+      if (!response.ok) {
+        toast.error(body.error || "Could not load admins.");
+        return;
+      }
+      setAdmins(body.admins);
+    });
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
   }, [open]);
 
   async function createAdmin(values: { name: string; phone: string; country: string; username: string; password: string }) {
