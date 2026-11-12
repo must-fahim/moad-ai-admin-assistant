@@ -31,7 +31,10 @@ const ShellActionsContext = createContext<(actions: ShellActions) => void>(() =>
 export function useShellActions(actions: ShellActions) {
   const setActions = useContext(ShellActionsContext);
   const actionsRef = useRef(actions);
-  actionsRef.current = actions;
+
+  useEffect(() => {
+    actionsRef.current = actions;
+  }, [actions]);
 
   useEffect(() => {
     setActions({
@@ -57,10 +60,6 @@ export function AppShell({
   const setActions = useCallback((actions: ShellActions) => {
     actionsRef.current = actions;
   }, []);
-
-  useEffect(() => {
-    setNavOpen(false);
-  }, [pathname]);
 
   async function newChat() {
     setNavOpen(false);
@@ -104,7 +103,7 @@ export function AppShell({
           {NAV.map((item) => {
             const active = pathname === item.href;
             return (
-              <Link key={item.href} className={active ? "active" : ""} href={item.href} aria-current={active ? "page" : undefined}>
+              <Link key={item.href} className={active ? "active" : ""} href={item.href} aria-current={active ? "page" : undefined} onClick={() => setNavOpen(false)}>
                 {item.icon}
                 {item.label}
               </Link>

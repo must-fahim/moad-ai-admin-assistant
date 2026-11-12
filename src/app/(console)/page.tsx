@@ -8,5 +8,5 @@ export default async function HomePage({
   searchParams: Promise<{ prompt?: string }>;
 }) {
   const { prompt } = await searchParams;
-  return <ChatScreen initialDraft={typeof prompt === "string" ? prompt : ""} />;
+  return <ChatScreen key={typeof prompt === "string" ? prompt : ""} initialDraft={typeof prompt === "string" ? prompt : ""} />;
 }

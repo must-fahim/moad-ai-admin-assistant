@@ -1,13 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { APP_PAGES } from "@/lib/catalog";
 import type { AdvertiserRow, ApplicationRow, ClientLists, PartnerRow } from "@/lib/client-lists";
 import { SkeletonTable } from "@/components/loader";
 import { labelize } from "@/lib/labels";
 
-export function TablesScreen({ lists }: { lists: ClientLists }) {
-  const [origin, setOrigin] = useState("");
+export function TablesScreen({ lists, origin }: { lists: ClientLists; origin: string }) {
   const [data, setData] = useState(lists);
   const [refreshing, setRefreshing] = useState<string | null>(null);
 
@@ -21,10 +20,6 @@ export function TablesScreen({ lists }: { lists: ClientLists }) {
     } finally {
       setRefreshing(null);
     }
-  }, []);
-
-  useEffect(() => {
-    setOrigin(window.location.origin);
   }, []);
 
   return (

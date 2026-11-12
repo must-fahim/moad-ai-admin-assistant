@@ -19,10 +19,7 @@ export function ChatScreen({ initialDraft = "" }: { initialDraft?: string }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [draft, setDraft] = useState(initialDraft);
-
-  useEffect(() => {
-    if (initialDraft) setDraft(initialDraft);
-  }, [initialDraft]);
+  const pendingSerial = useRef(0);
   const [busy, setBusy] = useState(false);
   const [activityOpen, setActivityOpen] = useState(false);
   const [activityLoading, setActivityLoading] = useState(false);
@@ -55,7 +52,8 @@ export function ChatScreen({ initialDraft = "" }: { initialDraft?: string }) {
     if (!message || busy) return;
     setDraft("");
     setBusy(true);
-    const pendingId = `pending-${Date.now()}`;
+    pendingSerial.current += 1;
+    const pendingId = `pending-${pendingSerial.current}`;
     const pending: ChatMessage = {
       id: pendingId,
       role: "user",
