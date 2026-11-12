@@ -277,8 +277,9 @@ export const writeActions: Record<string, ActionHandler> = {
       if (check.missing) return ask("What status should the advertiser have? Pending approval, approved, rejected, or blacklist.");
       if (!check.status) return ask(`Use one of these advertiser statuses: ${ADVERTISER_STATUSES.map(labelize).join(", ")}.`);
       const found = await findAdvertisers(args, true);
-      return oneOf(ctx, "change_advertiser_status", args, found, "advertiser", advertiserCard, (row) =>
-        queue(ctx, {
+      return oneOf(ctx, "change_advertiser_status", args, found, "advertiser", advertiserCard, async (row) => {
+        if (row.status === check.status) return ask(`${row.company_name} is already ${labelize(check.status)}. Nothing needs to change.`);
+        return queue(ctx, {
           action: "change_advertiser_status",
           args,
           targetType: "advertiser",
@@ -291,8 +292,8 @@ export const writeActions: Record<string, ActionHandler> = {
             ["Current status", labelize(row.status)],
             ["New status", labelize(check.status)],
           ]),
-        }),
-      );
+        });
+      });
     },
   },
   change_cargo_partner_status: {
@@ -304,8 +305,9 @@ export const writeActions: Record<string, ActionHandler> = {
       if (check.missing) return ask("What status should the cargo partner have? Under review, approved, rejected, or blacklist.");
       if (!check.status) return ask(`Use one of these cargo partner statuses: ${CARGO_STATUSES.map(labelize).join(", ")}.`);
       const found = await findCargo(args);
-      return oneOf(ctx, "change_cargo_partner_status", args, found, "cargo partner", cargoCard, (row) =>
-        queue(ctx, {
+      return oneOf(ctx, "change_cargo_partner_status", args, found, "cargo partner", cargoCard, async (row) => {
+        if (row.status === check.status) return ask(`${row.name} (${row.member_number}) is already ${labelize(check.status)}. Nothing needs to change.`);
+        return queue(ctx, {
           action: "change_cargo_partner_status",
           args,
           targetType: "cargo_partner",
@@ -319,8 +321,8 @@ export const writeActions: Record<string, ActionHandler> = {
             ["Current status", labelize(row.status)],
             ["New status", labelize(check.status)],
           ]),
-        }),
-      );
+        });
+      });
     },
   },
   change_cargo_partner_name: {
@@ -393,8 +395,9 @@ export const writeActions: Record<string, ActionHandler> = {
       if (check.missing) return ask("What status should the campaign have?");
       if (!check.status) return ask(`Use one of these campaign statuses: ${CAMPAIGN_STATUSES.map(labelize).join(", ")}.`);
       const found = await findCampaigns(args);
-      return oneOf(ctx, "change_campaign_status", args, found, "campaign", campaignCard, (row) =>
-        queue(ctx, {
+      return oneOf(ctx, "change_campaign_status", args, found, "campaign", campaignCard, async (row) => {
+        if (row.status === check.status) return ask(`${row.name} is already ${labelize(check.status)}. Nothing needs to change.`);
+        return queue(ctx, {
           action: "change_campaign_status",
           args,
           targetType: "campaign",
@@ -408,8 +411,8 @@ export const writeActions: Record<string, ActionHandler> = {
             ["Current status", labelize(row.status)],
             ["New status", labelize(check.status)],
           ]),
-        }),
-      );
+        });
+      });
     },
   },
   stop_campaign: {
@@ -446,8 +449,9 @@ export const writeActions: Record<string, ActionHandler> = {
       const check = guardStatus(args.recruitment_status ?? args.status, ["active", "inactive"]);
       if (check.missing || !check.status) return ask("Should driver recruitment be active or inactive?");
       const found = await findCampaigns(args);
-      return oneOf(ctx, "change_recruitment_status", args, found, "campaign", campaignCard, (row) =>
-        queue(ctx, {
+      return oneOf(ctx, "change_recruitment_status", args, found, "campaign", campaignCard, async (row) => {
+        if (row.recruitment_status === check.status) return ask(`Recruitment for ${row.name} is already ${labelize(check.status)}. Nothing needs to change.`);
+        return queue(ctx, {
           action: "change_recruitment_status",
           args,
           targetType: "campaign",
@@ -460,8 +464,8 @@ export const writeActions: Record<string, ActionHandler> = {
             ["Current recruitment", labelize(row.recruitment_status)],
             ["New recruitment", labelize(check.status)],
           ]),
-        }),
-      );
+        });
+      });
     },
   },
   change_application_status: {
@@ -473,8 +477,9 @@ export const writeActions: Record<string, ActionHandler> = {
       if (check.missing) return ask("What status should the application have?");
       if (!check.status) return ask(`Use one of these application statuses: ${APPLICATION_STATUSES.map(labelize).join(", ")}.`);
       const found = await findApplications(args);
-      return oneOf(ctx, "change_application_status", args, found, "application", applicationCard, (row) =>
-        queue(ctx, {
+      return oneOf(ctx, "change_application_status", args, found, "application", applicationCard, async (row) => {
+        if (row.status === check.status) return ask(`${row.cargo_partners?.name}'s application on ${row.campaigns?.name} is already ${labelize(check.status)}. Nothing needs to change.`);
+        return queue(ctx, {
           action: "change_application_status",
           args,
           targetType: "campaign_application",
@@ -489,8 +494,8 @@ export const writeActions: Record<string, ActionHandler> = {
             ["Current status", labelize(row.status)],
             ["New status", labelize(check.status)],
           ]),
-        }),
-      );
+        });
+      });
     },
   },
   confirm_cargo_settlement: {
@@ -780,6 +785,9 @@ function feeQuantities(args: Args) {
 
 async function updateStatus(table: string, pending: PendingAction, nextStatus: string) {
   const current = await requireCurrent(table, pending.target_id, pending.before_data, ["status"]);
+  if (current.status === nextStatus) {
+    throw new ActionRefusal(`${labelOf(current)} is already ${labelize(nextStatus)}. Nothing was changed.`);
+  }
   unwrap(await db().from(table).update({ status: nextStatus }).eq("id", current.id));
   return {
     summary: `${labelOf(current)} is now ${labelize(nextStatus)}.`,
@@ -838,6 +846,9 @@ export async function commitAction(pending: PendingAction) {
     case "change_recruitment_status": {
       const current = await requireCurrent("campaigns", pending.target_id, pending.before_data, ["recruitment_status"]);
       const recruitment = canonical(args.recruitment_status ?? args.status);
+      if (current.recruitment_status === recruitment) {
+        throw new ActionRefusal(`Recruitment for ${current.name} is already ${labelize(recruitment)}. Nothing was changed.`);
+      }
       unwrap(await db().from("campaigns").update({ recruitment_status: recruitment }).eq("id", current.id));
       return { summary: `Recruitment for ${current.name} is now ${labelize(recruitment)}.`, before: { recruitment_status: current.recruitment_status }, after: { recruitment_status: recruitment, id: current.id } };
     }
