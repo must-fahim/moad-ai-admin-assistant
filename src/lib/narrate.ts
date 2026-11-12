@@ -7,14 +7,18 @@ const CATALOG = listActions()
   .map((action) => `- ${action.name} (${action.kind}): ${action.description} Args: ${action.args}.`)
   .join("\n");
 
+const UNCLEAR = "I can look up campaigns, advertisers, cargo partners, settlements, Solo Pay, FAQs, and notices. Ask for a count or a name, or tell me the one record you want to change.";
+
 export async function interpret(message: string, history: { role: "user" | "assistant"; content: string }[]) {
+  try {
   const result = await completeJson([
     {
       role: "system",
       content: [
         "You choose one approved MOAD admin action. You never write SQL and you never claim a record was changed.",
         "Return JSON: {\"action\":\"action_name\",\"args\":{}} or {\"action\":null,\"clarification\":\"what you need\"}.",
-        "Use null when the request is missing the record or the new value.",
+        "Use null when the request is a greeting, thanks, small talk, or missing the record or the new value.",
+        "For those, put a short helpful reply in clarification. Do not invent an action.",
         "Status values use snake case: pending_approval, approved, rejected, blacklist, under_review, preparing, recruiting, operational, in_progress, paused, ended, before_settlement, settlement_confirmed, before_payment, payment_confirmed.",
         "Stop a campaign with stop_campaign. A count or filter is a read and does not need confirmation.",
         "Approved actions:",
@@ -31,9 +35,12 @@ export async function interpret(message: string, history: { role: "user" | "assi
       ? (result.args as Record<string, unknown>)
       : {};
   if (!action || action === "null" || action === "none") {
-    return { action: null as string | null, args, clarification: text(result.clarification) || "Tell me the record and what you want to do with it." };
+    return { action: null as string | null, args, clarification: text(result.clarification) || UNCLEAR };
   }
   return { action, args, clarification: text(result.clarification) };
+  } catch {
+    return { action: null as string | null, args: {}, clarification: UNCLEAR };
+  }
 }
 
 export async function narrate(outcome: ActionOutcome): Promise<string> {

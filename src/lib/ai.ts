@@ -17,7 +17,7 @@ export function parseModelJson(content: string): Record<string, unknown> {
   return JSON.parse(raw.slice(start, end + 1)) as Record<string, unknown>;
 }
 
-export async function completeJson(messages: ChatTurn[]): Promise<Record<string, unknown>> {
+async function completeOnce(messages: ChatTurn[], jsonMode: boolean): Promise<Record<string, unknown>> {
   const apiKey = process.env.AI_API_KEY;
   if (!apiKey) {
     const error = new Error("AI_API_KEY is not set on the server.");
@@ -30,9 +30,7 @@ export async function completeJson(messages: ChatTurn[]): Promise<Record<string,
     temperature: 0,
     messages,
   };
-  if (process.env.AI_JSON_MODE !== "false") {
-    body.response_format = { type: "json_object" };
-  }
+  if (jsonMode) body.response_format = { type: "json_object" };
 
   const response = await fetch(endpoint(), {
     method: "POST",
@@ -56,4 +54,15 @@ export async function completeJson(messages: ChatTurn[]): Promise<Record<string,
   const content = payload?.choices?.[0]?.message?.content;
   if (!content) throw new Error("The model returned an empty response.");
   return parseModelJson(content);
+}
+
+export async function completeJson(messages: ChatTurn[]): Promise<Record<string, unknown>> {
+  const jsonMode = process.env.AI_JSON_MODE !== "false";
+  try {
+    return await completeOnce(messages, jsonMode);
+  } catch (error) {
+    const status = typeof error === "object" && error && "status" in error ? (error as { status?: number }).status : undefined;
+    if (!jsonMode || status === 503) throw error;
+    return completeOnce(messages, false);
+  }
 }

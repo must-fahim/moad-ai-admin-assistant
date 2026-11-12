@@ -10,18 +10,25 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <ConfigProvider
         theme={{
           token: {
-            colorPrimary: "#1c1915",
-            colorLink: "#1c1915",
+            colorPrimary: "#1d4ed8",
+            colorLink: "#1d4ed8",
             borderRadius: 10,
             fontFamily: "inherit",
+            controlHeight: 38,
           },
         }}
       >
         {children}
         <Toaster
-          position="top-center"
+          position="top-right"
           toastOptions={{
-            style: { background: "#1c1915", color: "#f6f1e8", borderRadius: 12 },
+            style: {
+              background: "#0f172a",
+              color: "#f8fafc",
+              borderRadius: 12,
+              fontSize: 14,
+              boxShadow: "0 12px 32px rgba(15, 23, 42, 0.18)",
+            },
           }}
         />
       </ConfigProvider>

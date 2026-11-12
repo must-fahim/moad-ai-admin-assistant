@@ -12,7 +12,7 @@ export type ChatPayload = {
     pendingActionId: string;
     title: string;
     lines: { label: string; value: string }[];
-    state: "pending" | "confirmed" | "cancelled" | "refused";
+    state: "pending" | "confirmed" | "cancelled" | "refused" | "expired";
   };
 };
 
