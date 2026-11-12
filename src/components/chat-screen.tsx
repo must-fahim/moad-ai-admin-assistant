@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Button, Drawer } from "antd";
 import toast from "react-hot-toast";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AdminManager } from "@/components/admin-manager";
 import type { AdminProfile, ChatMessage, ChatPayload } from "@/lib/chat-types";
@@ -15,10 +16,14 @@ const PROMPTS = [
   "Summarize cargo settlements for 2026-11",
 ];
 
-export function ChatScreen({ admin }: { admin: AdminProfile }) {
+export function ChatScreen({ admin, initialDraft = "" }: { admin: AdminProfile; initialDraft?: string }) {
   const router = useRouter();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [draft, setDraft] = useState("");
+  const [draft, setDraft] = useState(initialDraft);
+
+  useEffect(() => {
+    if (initialDraft) setDraft(initialDraft);
+  }, [initialDraft]);
   const [busy, setBusy] = useState(false);
   const [adminsOpen, setAdminsOpen] = useState(false);
   const [activityOpen, setActivityOpen] = useState(false);
@@ -107,6 +112,7 @@ export function ChatScreen({ admin }: { admin: AdminProfile }) {
           <p className="quiet">Counts run immediately. A change waits until you confirm one record.</p>
         </div>
         <button className="ghost-button" onClick={clearChat} type="button">New chat</button>
+        <Link className="ghost-button" href="/guide">Question guide</Link>
         <div className="prompt-list">
           {PROMPTS.map((prompt) => (
             <button key={prompt} type="button" onClick={() => send(prompt)}>{prompt}</button>
@@ -123,6 +129,7 @@ export function ChatScreen({ admin }: { admin: AdminProfile }) {
           <strong>Assistant</strong>
           <div className="stage-actions">
             <Button className="mobile-only" onClick={() => setMenuOpen(true)}>Menu</Button>
+            <Button onClick={() => router.push("/guide")}>Guide</Button>
             <Button onClick={openActivity}>Activity</Button>
             <Button onClick={() => setAdminsOpen(true)}>Admins</Button>
           </div>
@@ -132,7 +139,7 @@ export function ChatScreen({ admin }: { admin: AdminProfile }) {
             {messages.length === 0 ? (
               <div className="empty">
                 <h2>What needs doing?</h2>
-                <p>Ask for a count, a name, or a change. Shared names come back as a list, and nothing is written until you confirm.</p>
+                <p>Ask for a count, a name, or a change. Shared names come back as a list, and nothing is written until you confirm. The <Link href="/guide">question guide</Link> lists every approved function.</p>
               </div>
             ) : null}
             {messages.map((message) => (
@@ -185,6 +192,7 @@ export function ChatScreen({ admin }: { admin: AdminProfile }) {
         </div>
       </Drawer>
       <Drawer title="Menu" open={menuOpen} onClose={() => setMenuOpen(false)}>
+        <Link className="guide-menu-link" href="/guide" onClick={() => setMenuOpen(false)}>Question guide</Link>
         <div className="prompt-list">
           {PROMPTS.map((prompt) => (
             <button key={prompt} type="button" onClick={() => send(prompt)} style={{ color: "#1c1915", borderColor: "#e4dfd6" }}>{prompt}</button>
