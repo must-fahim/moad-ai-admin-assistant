@@ -55,18 +55,56 @@ export function ChatScreen({ initialDraft = "" }: { initialDraft?: string }) {
     if (!message || busy) return;
     setDraft("");
     setBusy(true);
-    const response = await fetch("/api/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, resume }),
-    });
-    const body = await response.json();
-    setBusy(false);
-    if (!response.ok) {
-      toast.error(body.error || "The assistant could not answer.");
-      return;
+    const pendingId = `pending-${Date.now()}`;
+    const pending: ChatMessage = {
+      id: pendingId,
+      role: "user",
+      content: message,
+      payload: null,
+      createdAt: new Date().toISOString(),
+    };
+    setMessages((current) => [...current, pending]);
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message, resume }),
+      });
+      const body = await response.json();
+      if (!response.ok || !body.assistantMessage) {
+        const explanation = body.error || "The assistant could not answer. Try a count, a name, or one record to change.";
+        toast.error(explanation);
+        setMessages((current) => [
+          ...current.filter((item) => item.id !== pendingId),
+          body.userMessage ?? pending,
+          {
+            id: `${pendingId}-error`,
+            role: "assistant",
+            content: explanation,
+            payload: null,
+            createdAt: new Date().toISOString(),
+          },
+        ]);
+        return;
+      }
+      setMessages((current) => [...current.filter((item) => item.id !== pendingId), body.userMessage, body.assistantMessage]);
+    } catch {
+      const explanation = "The assistant could not be reached.";
+      toast.error(explanation);
+      setMessages((current) => [
+        ...current.filter((item) => item.id !== pendingId),
+        pending,
+        {
+          id: `${pendingId}-error`,
+          role: "assistant",
+          content: explanation,
+          payload: null,
+          createdAt: new Date().toISOString(),
+        },
+      ]);
+    } finally {
+      setBusy(false);
     }
-    setMessages((current) => [...current, body.userMessage, body.assistantMessage]);
   }
 
   async function decide(intent: "confirm" | "cancel" | "refuse", pendingActionId: string) {

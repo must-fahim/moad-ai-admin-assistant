@@ -52,17 +52,25 @@ export async function POST(request: Request) {
     const resume = body.resume as { action?: string; args?: Record<string, unknown> } | undefined;
 
     let outcome: ActionOutcome;
-    if (resume?.action) {
-      outcome = await runAction(resume.action, resume.args ?? {}, { adminId: admin.id });
-    } else {
-      const decision = await interpret(message, history);
-      outcome = decision.action
-        ? await runAction(decision.action, decision.args, { adminId: admin.id })
-        : { kind: "clarification", summary: decision.clarification };
+    try {
+      if (resume?.action) {
+        outcome = await runAction(resume.action, resume.args ?? {}, { adminId: admin.id });
+      } else {
+        const decision = await interpret(message, history);
+        outcome = decision.action
+          ? await runAction(decision.action, decision.args, { adminId: admin.id })
+          : { kind: "clarification", summary: decision.clarification };
+      }
+    } catch (error) {
+      console.error(error);
+      outcome = {
+        kind: "clarification",
+        summary: "I could not complete that. Ask for a count, a name, or one record to change.",
+      };
     }
 
-    const reply = await narrate(outcome);
-    const assistantMessage = await addMessage(admin.id, "assistant", reply, payloadFrom(outcome));
+    const reply = outcome.kind === "clarification" ? outcome.summary : await narrate(outcome);
+    const assistantMessage = await addMessage(admin.id, "assistant", reply || outcome.summary, payloadFrom(outcome));
     return Response.json({ userMessage, assistantMessage });
   } catch (error) {
     return apiError(error);
