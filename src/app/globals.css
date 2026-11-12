@@ -437,6 +437,7 @@ textarea:focus-visible {
 .match-list strong, .confirm-card strong { display: block; }
 .match-list span, .confirm-lines { color: var(--muted); font-size: 13px; }
 .confirm-card { background: #fffbeb; border-color: #f5d48a; border-left: 3px solid #d97706; }
+.confirm-card.is-closed { background: #f8fafc; border-color: var(--line); border-left-color: #cbd5e1; }
 .confirm-lines { display: grid; grid-template-columns: 140px 1fr; gap: 4px 10px; margin: 10px 0; }
 .confirm-lines b { color: var(--ink); font-weight: 650; }
 .confirm-actions { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -452,6 +453,7 @@ textarea:focus-visible {
 .tag.confirmed { color: #047857; }
 .tag.cancelled, .tag.refused { color: #b91c1c; }
 .tag.pending { color: #b45309; }
+.tag.expired { color: #64748b; }
 
 .composer-wrap {
   flex-shrink: 0;

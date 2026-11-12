@@ -87,7 +87,7 @@ export function ChatScreen({ initialDraft = "" }: { initialDraft?: string }) {
         ]);
         return;
       }
-      setMessages((current) => [...current.filter((item) => item.id !== pendingId), body.userMessage, body.assistantMessage]);
+      setMessages((current) => mergeClosed(current.filter((item) => item.id !== pendingId), body.closedMessages, [body.userMessage, body.assistantMessage]));
     } catch {
       const explanation = "The assistant could not be reached.";
       toast.error(explanation);
@@ -252,6 +252,16 @@ function HistorySkeleton() {
   );
 }
 
+function mergeClosed(current: ChatMessage[], closed: ChatMessage[] | undefined, added: ChatMessage[]) {
+  const replacements = new Map((closed ?? []).map((message) => [message.id, message]));
+  return [...current.map((message) => replacements.get(message.id) ?? message), ...added];
+}
+
+function confirmationLabel(state: NonNullable<ChatPayload["confirmation"]>["state"]) {
+  if (state === "expired") return "Left unanswered";
+  return state;
+}
+
 function formatTime(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
@@ -284,7 +294,7 @@ function Result({
         </div>
       ) : null}
       {confirmation ? (
-        <div className="confirm-card">
+        <div className={`confirm-card${confirmation.state === "pending" ? "" : " is-closed"}`}>
           <strong>{confirmation.title}</strong>
           <div className="confirm-lines">
             {confirmation.lines.map((line) => (
@@ -300,7 +310,7 @@ function Result({
               <Button disabled={busy} onClick={() => onDecide("cancel", confirmation.pendingActionId)}>Cancel</Button>
               <Button disabled={busy} onClick={() => onDecide("refuse", confirmation.pendingActionId)}>Refuse</Button>
             </div>
-          ) : <span className={`tag ${confirmation.state}`}>{confirmation.state}</span>}
+          ) : <span className={`tag ${confirmation.state}`}>{confirmationLabel(confirmation.state)}</span>}
         </div>
       ) : null}
       {!payload.matches && payload.rows && payload.rows.length > 0 && payload.columns ? (
