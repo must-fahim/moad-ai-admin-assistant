@@ -1,6 +1,6 @@
 import { writeAudit } from "@/lib/audit";
 import { db, unwrap, type Row } from "@/lib/db";
-import { booleanValue, canonical, day, krw, labelize, like, monthStart, text } from "@/lib/labels";
+import { booleanValue, canonical, day, integer, krw, labelize, like, monthStart, text } from "@/lib/labels";
 import { FEE_RATES, lineAmount, recomputeSettlement, type FeeType } from "@/lib/settlement-math";
 import type { ActionContext, ActionHandler, ActionOutcome, Args, PendingAction } from "@/lib/actions/types";
 
@@ -267,6 +267,79 @@ async function requireCurrent(table: string, id: string | null, before: Record<s
   return current;
 }
 
+type SettlementAmount = "base" | "extras" | "tax" | "net";
+
+function moneyInput(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value) && value >= 0) return Math.trunc(value);
+  const parsed = integer(text(value).replace(/,/g, "").replace(/krw/gi, ""));
+  if (parsed == null || parsed < 0) return null;
+  return parsed;
+}
+
+function previewSettlement(row: Row, field: SettlementAmount, amount: number) {
+  const base = field === "base" ? amount : Number(row.base_amount_krw || 0);
+  const extras = field === "extras" ? amount : Number(row.additional_amount_krw || 0);
+  if (field === "base" || field === "extras") {
+    const money = recomputeSettlement(base, extras);
+    return { base, extras, tax: money.taxAmountKrw, net: money.finalAmountKrw };
+  }
+  const tax = field === "tax" ? amount : Number(row.tax_amount_krw || 0);
+  const net = field === "net" ? amount : Math.floor((base + extras - tax) / 10) * 10;
+  return { base, extras, tax, net };
+}
+
+function settlementAmountAction(field: SettlementAmount): ActionHandler {
+  const label = field === "base" ? "Base" : field === "extras" ? "Extras" : field === "tax" ? "Tax" : "Net";
+  const action = `update_cargo_settlement_${field}`;
+  return {
+    kind: "write",
+    description: `Set the ${label.toLowerCase()} amount, in KRW, on one driving-partner settlement that is still before settlement. Changing base or extras recalculates tax and net. Changing tax recalculates the net.`,
+    args: "partner_name or member_number or id, month, amount",
+    async run(args, ctx) {
+      const amount = moneyInput(args.amount ?? args[field] ?? args[`${field}_amount`]);
+      if (amount == null) return ask(`What ${label.toLowerCase()} amount, in KRW, should I set?`);
+      const found = await findCargoSettlements(args);
+      return oneOf(ctx, action, { ...args, amount }, found, "cargo settlement", (row) => ({
+        label: row.cargo_partners?.name ?? "Settlement",
+        detail: `${String(row.settlement_month).slice(0, 7)} · ${labelize(row.status)} · net ${krw(row.final_amount_krw)}`,
+      }), async (row) => {
+        if (row.status !== "before_settlement") {
+          return refuse(ctx, action, `${row.cargo_partners?.name}'s ${String(row.settlement_month).slice(0, 7)} settlement is already ${labelize(row.status)}. Nothing was changed.`, "cargo_settlement", row.id);
+        }
+        const next = previewSettlement(row, field, amount);
+        const unchanged = Number(row.base_amount_krw) === next.base
+          && Number(row.additional_amount_krw) === next.extras
+          && Number(row.tax_amount_krw) === next.tax
+          && Number(row.final_amount_krw) === next.net;
+        if (unchanged) return ask(`${row.cargo_partners?.name}'s ${label.toLowerCase()} is already ${krw(amount)}. Nothing needs to change.`);
+        return queue(ctx, {
+          action,
+          args: { ...args, amount },
+          targetType: "cargo_settlement",
+          targetId: row.id,
+          title: `Change settlement ${label.toLowerCase()}`,
+          summary: `Set the ${label.toLowerCase()} for ${row.cargo_partners?.name} (${String(row.settlement_month).slice(0, 7)}) to ${krw(amount)} after you confirm.`,
+          before: {
+            status: row.status,
+            base_amount_krw: row.base_amount_krw,
+            additional_amount_krw: row.additional_amount_krw,
+            tax_amount_krw: row.tax_amount_krw,
+            final_amount_krw: row.final_amount_krw,
+          },
+          lines: detailLines([
+            ["Partner", row.cargo_partners?.name],
+            ["Month", String(row.settlement_month).slice(0, 7)],
+            [`Current ${label.toLowerCase()}`, krw(row[field === "base" ? "base_amount_krw" : field === "extras" ? "additional_amount_krw" : field === "tax" ? "tax_amount_krw" : "final_amount_krw"])],
+            [`New ${label.toLowerCase()}`, krw(amount)],
+            ["Tax", krw(next.tax)],
+            ["Net", krw(next.net)],
+          ]),
+        });
+      });
+    },
+  };
+}
+
 export const writeActions: Record<string, ActionHandler> = {
   change_advertiser_status: {
     kind: "write",
@@ -291,6 +364,60 @@ export const writeActions: Record<string, ActionHandler> = {
             ["Company", row.company_name],
             ["Current status", labelize(row.status)],
             ["New status", labelize(check.status)],
+          ]),
+        });
+      });
+    },
+  },
+  change_advertiser_contact_name: {
+    kind: "write",
+    description: "Change the contact name on one advertiser company.",
+    args: "company_name or email or id, contact_name",
+    async run(args, ctx) {
+      const next = text(args.contact_name) || text(args.new_name);
+      if (!next) return ask("What should the new contact name be?");
+      const found = await findAdvertisers({ ...args, company_name: text(args.company_name) || text(args.company) || text(args.name) }, false);
+      return oneOf(ctx, "change_advertiser_contact_name", args, found, "advertiser", advertiserCard, async (row) => {
+        if (row.contact_name === next) return ask(`${row.company_name} already has contact name ${next}. Nothing needs to change.`);
+        return queue(ctx, {
+          action: "change_advertiser_contact_name",
+          args: { ...args, contact_name: next },
+          targetType: "advertiser",
+          targetId: row.id,
+          title: "Change advertiser contact name",
+          summary: `Change the contact name for ${row.company_name} from “${row.contact_name || "—"}” to “${next}” after you confirm.`,
+          before: { contact_name: row.contact_name },
+          lines: detailLines([
+            ["Company", row.company_name],
+            ["Current contact name", row.contact_name || "—"],
+            ["New contact name", next],
+          ]),
+        });
+      });
+    },
+  },
+  change_advertiser_contact_phone: {
+    kind: "write",
+    description: "Change the contact phone number on one advertiser company.",
+    args: "company_name or email or id, contact_phone",
+    async run(args, ctx) {
+      const next = text(args.contact_phone) || text(args.phone) || text(args.new_phone);
+      if (!next) return ask("What should the new contact phone number be?");
+      const found = await findAdvertisers({ ...args, company_name: text(args.company_name) || text(args.company) || text(args.name) }, false);
+      return oneOf(ctx, "change_advertiser_contact_phone", args, found, "advertiser", advertiserCard, async (row) => {
+        if (row.contact_phone === next) return ask(`${row.company_name} already has contact phone ${next}. Nothing needs to change.`);
+        return queue(ctx, {
+          action: "change_advertiser_contact_phone",
+          args: { ...args, contact_phone: next },
+          targetType: "advertiser",
+          targetId: row.id,
+          title: "Change advertiser contact phone",
+          summary: `Change the contact phone for ${row.company_name} from ${row.contact_phone || "—"} to ${next} after you confirm.`,
+          before: { contact_phone: row.contact_phone },
+          lines: detailLines([
+            ["Company", row.company_name],
+            ["Current contact phone", row.contact_phone || "—"],
+            ["New contact phone", next],
           ]),
         });
       });
@@ -563,6 +690,10 @@ export const writeActions: Record<string, ActionHandler> = {
       });
     },
   },
+  update_cargo_settlement_base: settlementAmountAction("base"),
+  update_cargo_settlement_extras: settlementAmountAction("extras"),
+  update_cargo_settlement_tax: settlementAmountAction("tax"),
+  update_cargo_settlement_net: settlementAmountAction("net"),
   confirm_advertiser_payment: {
     kind: "write",
     description: "Mark an advertiser settlement as payment confirmed.",
@@ -682,6 +813,65 @@ export const writeActions: Record<string, ActionHandler> = {
           ["Audience", labelize(audience)],
           ["Body", text(args.body) || "No body yet"],
         ]),
+      });
+    },
+  },
+  change_notice_category: {
+    kind: "write",
+    description: "Change a notice category. Categories: both, cargo owner, advertiser, landing page.",
+    args: "title or id, audience or category",
+    async run(args, ctx) {
+      const audience = canonical(args.audience || args.category);
+      if (!audience) return ask("Which category should the notice use? Both, cargo owner, advertiser, or landing page.");
+      if (!["both", "cargo_owner", "advertiser", "landing_page"].includes(audience)) {
+        return ask("Category must be both, cargo owner, advertiser, or landing page.");
+      }
+      const found = await findPosts("notices", args, "title");
+      return oneOf(ctx, "change_notice_category", args, found, "notice", (row) => ({ label: String(row.title), detail: labelize(row.audience) }), async (row) => {
+        if (row.audience === audience) return ask(`“${row.title}” is already ${labelize(audience)}. Nothing needs to change.`);
+        return queue(ctx, {
+          action: "change_notice_category",
+          args: { ...args, audience },
+          targetType: "notice",
+          targetId: row.id,
+          title: "Change notice category",
+          summary: `Change “${row.title}” from ${labelize(row.audience)} to ${labelize(audience)} after you confirm.`,
+          before: { audience: row.audience },
+          lines: detailLines([
+            ["Title", row.title],
+            ["Current category", labelize(row.audience)],
+            ["New category", labelize(audience)],
+          ]),
+        });
+      });
+    },
+  },
+  change_notice_title: {
+    kind: "write",
+    description: "Change the title of one notice.",
+    args: "current title or id, new_title",
+    async run(args, ctx) {
+      const next = text(args.new_title);
+      const currentTitle = text(args.current_title) || text(args.name) || text(args.title);
+      if (!next) return ask("What should the new notice title be?");
+      if (!currentTitle && !text(args.id)) return ask("Which notice title should I change?");
+      const found = await findPosts("notices", { ...args, title: currentTitle }, "title");
+      return oneOf(ctx, "change_notice_title", args, found, "notice", (row) => ({ label: String(row.title), detail: labelize(row.audience) }), async (row) => {
+        if (row.title === next) return ask(`The notice is already titled “${next}”. Nothing needs to change.`);
+        return queue(ctx, {
+          action: "change_notice_title",
+          args: { ...args, new_title: next },
+          targetType: "notice",
+          targetId: row.id,
+          title: "Change notice title",
+          summary: `Change the notice title from “${row.title}” to “${next}” after you confirm.`,
+          before: { title: row.title },
+          lines: detailLines([
+            ["Current title", row.title],
+            ["New title", next],
+            ["Category", labelize(row.audience)],
+          ]),
+        });
       });
     },
   },
@@ -805,6 +995,20 @@ export async function commitAction(pending: PendingAction) {
   switch (pending.action_name) {
     case "change_advertiser_status":
       return updateStatus("advertisers", pending, canonical(args.status));
+    case "change_advertiser_contact_name": {
+      const current = await requireCurrent("advertisers", pending.target_id, pending.before_data, ["contact_name"]);
+      const next = text(args.contact_name);
+      if (!next) throw new ActionRefusal("A contact name is required. Nothing was changed.");
+      unwrap(await db().from("advertisers").update({ contact_name: next }).eq("id", current.id));
+      return { summary: `The contact name for ${current.company_name} is now ${next}.`, before: { contact_name: current.contact_name }, after: { contact_name: next, id: current.id } };
+    }
+    case "change_advertiser_contact_phone": {
+      const current = await requireCurrent("advertisers", pending.target_id, pending.before_data, ["contact_phone"]);
+      const next = text(args.contact_phone);
+      if (!next) throw new ActionRefusal("A contact phone number is required. Nothing was changed.");
+      unwrap(await db().from("advertisers").update({ contact_phone: next }).eq("id", current.id));
+      return { summary: `The contact phone for ${current.company_name} is now ${next}.`, before: { contact_phone: current.contact_phone }, after: { contact_phone: next, id: current.id } };
+    }
     case "change_cargo_partner_status":
       return updateStatus("cargo_partners", pending, canonical(args.status));
     case "change_cargo_partner_name": {
@@ -862,6 +1066,14 @@ export async function commitAction(pending: PendingAction) {
     }
     case "update_cargo_settlement_fees":
       return commitFees(pending);
+    case "update_cargo_settlement_base":
+      return commitSettlementAmount(pending, "base");
+    case "update_cargo_settlement_extras":
+      return commitSettlementAmount(pending, "extras");
+    case "update_cargo_settlement_tax":
+      return commitSettlementAmount(pending, "tax");
+    case "update_cargo_settlement_net":
+      return commitSettlementAmount(pending, "net");
     case "confirm_advertiser_payment": {
       const current = await requireCurrent("advertiser_settlements", pending.target_id, pending.before_data, ["status"]);
       if (current.status !== "before_payment") throw new ActionRefusal("This bill is no longer waiting for payment. Nothing was changed.");
@@ -886,6 +1098,22 @@ export async function commitAction(pending: PendingAction) {
         body: text(args.body),
         pinned: false,
       }, "Notice");
+    case "change_notice_category": {
+      const current = await requireCurrent("notices", pending.target_id, pending.before_data, ["audience"]);
+      const audience = canonical(args.audience || args.category);
+      if (!["both", "cargo_owner", "advertiser", "landing_page"].includes(audience)) {
+        throw new ActionRefusal("That category is not allowed. Nothing was changed.");
+      }
+      unwrap(await db().from("notices").update({ audience }).eq("id", current.id));
+      return { summary: `“${current.title}” is now ${labelize(audience)}.`, before: { audience: current.audience }, after: { audience, id: current.id } };
+    }
+    case "change_notice_title": {
+      const current = await requireCurrent("notices", pending.target_id, pending.before_data, ["title"]);
+      const next = text(args.new_title);
+      if (!next) throw new ActionRefusal("A notice title is required. Nothing was changed.");
+      unwrap(await db().from("notices").update({ title: next }).eq("id", current.id));
+      return { summary: `The notice is now titled “${next}”.`, before: { title: current.title }, after: { title: next, id: current.id } };
+    }
     case "delete_faq":
       return commitDelete("faqs", pending, "question", "FAQ");
     case "delete_notice":
@@ -931,6 +1159,27 @@ async function commitFees(pending: PendingAction) {
   unwrap(await db().from("cargo_settlements").update(patch).eq("id", current.id));
   return {
     summary: `Fees updated. The final amount is now ${krw(money.finalAmountKrw)}.`,
+    before: pending.before_data,
+    after: { id: current.id, ...patch },
+  };
+}
+
+async function commitSettlementAmount(pending: PendingAction, field: SettlementAmount) {
+  const current = await requireCurrent("cargo_settlements", pending.target_id, pending.before_data, ["status", "base_amount_krw", "additional_amount_krw", "tax_amount_krw", "final_amount_krw"]);
+  if (current.status !== "before_settlement") throw new ActionRefusal("This settlement can no longer be edited. Nothing was changed.");
+  const amount = moneyInput(pending.args.amount);
+  if (amount == null) throw new ActionRefusal("A KRW amount is required. Nothing was changed.");
+  const next = previewSettlement(current, field, amount);
+  const patch = {
+    base_amount_krw: next.base,
+    additional_amount_krw: next.extras,
+    tax_amount_krw: next.tax,
+    final_amount_krw: next.net,
+  };
+  unwrap(await db().from("cargo_settlements").update(patch).eq("id", current.id));
+  const label = field === "base" ? "Base" : field === "extras" ? "Extras" : field === "tax" ? "Tax" : "Net";
+  return {
+    summary: `${label} is now ${krw(amount)}. Tax is ${krw(next.tax)} and the net is ${krw(next.net)}.`,
     before: pending.before_data,
     after: { id: current.id, ...patch },
   };

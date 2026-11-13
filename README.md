@@ -1,6 +1,6 @@
 # MOAD AI Admin Assistant
 
-A Next.js admin assistant for MOAD campaign, cargo partner, settlement, Solo Pay, FAQ, and notice operations. An administrator asks in plain language. The server runs one of 44 predefined functions against a synthetic Supabase database. The model never writes SQL and never sees the database credentials.
+A Next.js admin assistant for MOAD campaign, cargo partner, settlement, Solo Pay, FAQ, and notice operations. An administrator asks in plain language. The server runs one of 52 predefined functions against a synthetic Supabase database. The model never writes SQL and never sees the database credentials.
 
 Writes identify one record, then wait for Confirm. Cancel and Refuse leave the row unchanged. Each of those three outcomes is stored in the audit log.
 
@@ -43,7 +43,7 @@ The service role key and the AI key stay in `.env.local`. They are not sent to t
 
 23 reads: search and count advertisers, cargo partners, campaigns, applications, settlements, Solo Pay, FAQs, and notices, plus distance totals, operating days, and the settlement summary cards.
 
-21 writes: advertiser and cargo status, cargo name, create and stop a campaign, campaign and recruitment status, application status, settlement confirmation and fees, advertiser payment, Solo Pay deduction, and FAQ or notice create, delete, pin, exposure, and reorder.
+29 writes: advertiser status, contact name, and contact phone, cargo status and name, create and stop a campaign, campaign and recruitment status, application status, settlement confirmation, fees, base, extras, tax, and net, advertiser payment, Solo Pay deduction, and FAQ or notice create, delete, pin, exposure, reorder, notice category, and notice title.
 
 A shared name such as Blue Depot, Minho Park, or City Wrap returns every match and does not open a confirmation card.
 

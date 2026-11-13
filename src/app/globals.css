@@ -278,13 +278,16 @@ textarea:focus-visible {
 
 .who { display: flex; align-items: center; gap: 10px; font-size: 14px; }
 .who strong { display: block; font-weight: 650; }
-.who span { display: block; color: #94a3b8; font-size: 12px; }
+.who .avatar + div span { display: block; color: #94a3b8; font-size: 12px; }
 
 .avatar {
   width: 34px;
   height: 34px;
-  display: grid;
-  place-items: center;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
   border-radius: 11px;
   background: #1e293b;
   color: #e2e8f0;
@@ -654,9 +657,9 @@ textarea:focus-visible {
 }
 .status-pill.pending_approval, .status-pill.under_review, .status-pill.preparing { background: #eff6ff; color: #1d4ed8; }
 .status-pill.rejected { background: #fef2f2; color: #b91c1c; }
-.status-pill.approved, .status-pill.operational, .status-pill.in_progress, .status-pill.recruiting { background: #ecfdf3; color: #047857; }
+.status-pill.approved, .status-pill.operational, .status-pill.in_progress, .status-pill.recruiting, .status-pill.active, .status-pill.settlement_confirmed, .status-pill.payment_confirmed { background: #ecfdf3; color: #047857; }
 .status-pill.blacklist { background: #0f172a; color: #f8fafc; }
-.status-pill.ended, .status-pill.paused { background: #fff7ed; color: #c2410c; }
+.status-pill.ended, .status-pill.paused, .status-pill.before_settlement, .status-pill.before_payment, .status-pill.inactive { background: #fff7ed; color: #c2410c; }
 
 .loader {
   display: inline-flex;
