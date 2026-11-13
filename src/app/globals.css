@@ -278,13 +278,16 @@ textarea:focus-visible {
 
 .who { display: flex; align-items: center; gap: 10px; font-size: 14px; }
 .who strong { display: block; font-weight: 650; }
-.who span { display: block; color: #94a3b8; font-size: 12px; }
+.who .avatar + div span { display: block; color: #94a3b8; font-size: 12px; }
 
 .avatar {
   width: 34px;
   height: 34px;
-  display: grid;
-  place-items: center;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
   border-radius: 11px;
   background: #1e293b;
   color: #e2e8f0;

@@ -15,11 +15,13 @@ export const GUIDE_GROUPS: GuideGroup[] = [
   {
     id: "advertisers",
     title: "Advertisers",
-    summary: "Search or count companies, then change one company status. Statuses: pending approval, approved, rejected, blacklist.",
+    summary: "Search or count companies, then change one company status, contact name, or contact phone. Statuses: pending approval, approved, rejected, blacklist.",
     questions: [
       { action: "count_advertisers", kind: "read", text: "How many advertisers are approved?" },
       { action: "search_advertisers", kind: "read", text: "List advertisers named Blue Depot" },
       { action: "change_advertiser_status", kind: "write", text: "Set Northline Ads to pending approval" },
+      { action: "change_advertiser_contact_name", kind: "write", text: "Change the contact name for Mapo Studio to Mina Park" },
+      { action: "change_advertiser_contact_phone", kind: "write", text: "Change the contact phone for Mapo Studio to 010-5555-9001" },
     ],
   },
   {
@@ -68,13 +70,17 @@ export const GUIDE_GROUPS: GuideGroup[] = [
   {
     id: "cargo-settlements",
     title: "Operating-partner settlements",
-    summary: "Month summaries, lists, and counts. Confirming a settlement or changing fees waits for Confirm, and only while the row is still before settlement.",
+    summary: "Month summaries, lists, and counts. Confirming a settlement, changing fees, or setting base, extras, tax, or net waits for Confirm, and only while the row is still before settlement.",
     questions: [
       { action: "summarize_cargo_settlements", kind: "read", text: "Summarize cargo settlements for 2026-11" },
       { action: "search_cargo_settlements", kind: "read", text: "List cargo settlements that are before settlement in 2026-11" },
       { action: "count_cargo_settlements", kind: "read", text: "How many cargo settlements are settlement confirmed for 2026-11?" },
       { action: "confirm_cargo_settlement", kind: "write", text: "Confirm Sora Kim's November 2026 settlement" },
       { action: "update_cargo_settlement_fees", kind: "write", text: "Set 1 visit and 1 fuel on Hana Cho's November 2026 settlement" },
+      { action: "update_cargo_settlement_base", kind: "write", text: "Set the base on Hana Cho's November 2026 settlement to 25000" },
+      { action: "update_cargo_settlement_extras", kind: "write", text: "Set the extras on Sora Kim's November 2026 settlement to 100000" },
+      { action: "update_cargo_settlement_tax", kind: "write", text: "Set the tax on Hana Cho's November 2026 settlement to 1500" },
+      { action: "update_cargo_settlement_net", kind: "write", text: "Set the net on Sora Kim's November 2026 settlement to 270000" },
     ],
   },
   {
@@ -116,11 +122,13 @@ export const GUIDE_GROUPS: GuideGroup[] = [
   {
     id: "notices",
     title: "Notices",
-    summary: "Audiences: both, cargo owner, advertiser, landing page. Creating, deleting, pinning, or reordering waits for Confirm.",
+    summary: "Categories: both, cargo owner, advertiser, landing page. Creating, changing the category or title, deleting, pinning, or reordering waits for Confirm.",
     questions: [
       { action: "count_notices", kind: "read", text: "How many notices are for cargo owners?" },
       { action: "search_notices", kind: "read", text: "List pinned notices" },
       { action: "create_notice", kind: "write", text: "Create a notice titled December schedule for both audiences. Body: Prototype schedule only." },
+      { action: "change_notice_category", kind: "write", text: "Change the category of Welcome to MOAD to advertiser" },
+      { action: "change_notice_title", kind: "write", text: "Change the title of Welcome to MOAD to Hello from MOAD" },
       { action: "set_notice_pin", kind: "write", text: "Pin the notice Vehicle document check" },
       { action: "reorder_notices", kind: "write", text: "Move the notice Welcome to MOAD up" },
       { action: "delete_notice", kind: "write", text: "Delete the notice Welcome to MOAD" },
