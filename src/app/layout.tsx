@@ -12,31 +12,56 @@ const sans = Plus_Jakarta_Sans({
 const title = "MOAD";
 const description = "MOAD admin assistant for campaigns, cargo partners, settlements, Solo Pay, FAQs, and notices. Reads run immediately. A change waits until you confirm.";
 
+
 export const metadata: Metadata = {
   title: { default: title, template: "%s · MOAD" },
   description,
   applicationName: "MOAD Admin Assistant",
   authors: [{ name: "MOAD" }],
   creator: "MOAD",
-  keywords: ["MOAD", "admin assistant", "campaigns", "cargo partners", "settlements"],
+  keywords: [
+    "MOAD",
+    "admin assistant",
+    "campaigns",
+    "cargo partners",
+    "settlements",
+  ],
   robots: { index: false, follow: false },
+
   icons: {
     icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
-    apple: [{ url: "/apple-icon", sizes: "180x180", type: "image/png" }],
+    apple: [
+      { url: "/apple-icon", sizes: "180x180", type: "image/png" },
+    ],
   },
+
   openGraph: {
     title: "MOAD Admin Assistant",
     description,
     siteName: "MOAD",
     type: "website",
     locale: "en_US",
+    url: "https://moad-ai-admin-assistant.vercel.app",
+    images: [
+      {
+        url: "https://moad-ai-admin-assistant.vercel.app/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "MOAD Admin Assistant",
+      },
+    ],
   },
+
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
     title: "MOAD Admin Assistant",
     description,
+    images: [
+      "https://moad-ai-admin-assistant.vercel.app/og-image.png",
+    ],
   },
 };
+
 
 export const viewport: Viewport = {
   themeColor: "#0c1424",
