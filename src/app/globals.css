@@ -654,9 +654,9 @@ textarea:focus-visible {
 }
 .status-pill.pending_approval, .status-pill.under_review, .status-pill.preparing { background: #eff6ff; color: #1d4ed8; }
 .status-pill.rejected { background: #fef2f2; color: #b91c1c; }
-.status-pill.approved, .status-pill.operational, .status-pill.in_progress, .status-pill.recruiting { background: #ecfdf3; color: #047857; }
+.status-pill.approved, .status-pill.operational, .status-pill.in_progress, .status-pill.recruiting, .status-pill.active, .status-pill.settlement_confirmed, .status-pill.payment_confirmed { background: #ecfdf3; color: #047857; }
 .status-pill.blacklist { background: #0f172a; color: #f8fafc; }
-.status-pill.ended, .status-pill.paused { background: #fff7ed; color: #c2410c; }
+.status-pill.ended, .status-pill.paused, .status-pill.before_settlement, .status-pill.before_payment, .status-pill.inactive { background: #fff7ed; color: #c2410c; }
 
 .loader {
   display: inline-flex;
