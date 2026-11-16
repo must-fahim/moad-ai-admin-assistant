@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { PushpinOutlined } from "@ant-design/icons";
 import { APP_PAGES } from "@/lib/catalog";
 import type { AdvertiserRow, AdvertiserSettlementRow, ApplicationRow, CampaignRow, CargoSettlementRow, ClientLists, FaqRow, NoticeRow, PartnerCampaignRow, PartnerRow, SoloRow } from "@/lib/client-lists";
 import { SkeletonTable } from "@/components/loader";
@@ -454,12 +455,11 @@ function FaqBoard({ rows, refreshing, onRefresh }: { rows: FaqRow[]; refreshing:
       title="FAQ"
       refreshing={refreshing}
       onRefresh={onRefresh}
-      headers={["NO.", "Category", "Question", "Pin", "Exposure", "Registration Date", "Author"]}
+      headers={["NO.", "Category", "Question", "Exposure", "Registration Date", "Author"]}
       rows={rows.map((row, index) => [
-        index + 1,
+        row.pinned ? <PinMark key="pin" /> : index + 1,
         <Status key="c" value={row.category} />,
         row.question,
-        row.pinned ? "Y" : "N",
         row.exposed ? "Y" : "N",
         row.registeredAt,
         row.author,
@@ -474,17 +474,20 @@ function NoticeBoard({ rows, refreshing, onRefresh }: { rows: NoticeRow[]; refre
       title="Notices"
       refreshing={refreshing}
       onRefresh={onRefresh}
-      headers={["NO", "Category Type", "Post Title", "Pin", "Registration Date", "Author"]}
+      headers={["NO", "Category Type", "Post Title", "Registration Date", "Author"]}
       rows={rows.map((row, index) => [
-        index + 1,
+        row.pinned ? <PinMark key="pin" /> : index + 1,
         <Status key="a" value={row.audience} />,
         row.title,
-        row.pinned ? "Y" : "N",
         row.registeredAt,
         row.author,
       ])}
     />
   );
+}
+
+function PinMark() {
+  return <PushpinOutlined className="row-pin" aria-label="Pinned" />;
 }
 
 function SimpleBoard({

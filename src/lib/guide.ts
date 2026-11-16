@@ -140,7 +140,7 @@ export const GUIDE_GROUPS: GuideGroup[] = [
   {
     id: "faqs",
     title: "FAQ",
-    summary: "Categories: use of service, settlement, others. Creating, deleting, pinning, unpinning, showing, hiding, or reordering waits for Confirm. The Pin column shows Y when a question is pinned.",
+    summary: "Categories: use of service, settlement, others. Creating, deleting, pinning, unpinning, showing, hiding, or reordering waits for Confirm. A pinned question shows a pin icon in the number column.",
     questions: [
       { action: "count_faqs", kind: "read", text: "How many FAQs are in the settlement category?" },
       { action: "search_faqs", kind: "read", text: "List pinned FAQs" },
@@ -155,7 +155,7 @@ export const GUIDE_GROUPS: GuideGroup[] = [
   {
     id: "notices",
     title: "Notices",
-    summary: "Categories: both, cargo owner, advertiser, landing page. Creating, changing the category or title, deleting, pinning, unpinning, or reordering waits for Confirm. The Pin column shows Y when a notice is pinned.",
+    summary: "Categories: both, cargo owner, advertiser, landing page. Creating, changing the category or title, deleting, pinning, unpinning, or reordering waits for Confirm. A pinned notice shows a pin icon in the number column.",
     questions: [
       { action: "count_notices", kind: "read", text: "How many notices are for cargo owners?" },
       { action: "search_notices", kind: "read", text: "List pinned notices" },
