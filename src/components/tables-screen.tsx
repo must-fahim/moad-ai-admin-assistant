@@ -454,11 +454,12 @@ function FaqBoard({ rows, refreshing, onRefresh }: { rows: FaqRow[]; refreshing:
       title="FAQ"
       refreshing={refreshing}
       onRefresh={onRefresh}
-      headers={["NO.", "Category", "Question", "Exposure", "Registration Date", "Author"]}
+      headers={["NO.", "Category", "Question", "Pin", "Exposure", "Registration Date", "Author"]}
       rows={rows.map((row, index) => [
         index + 1,
         <Status key="c" value={row.category} />,
         row.question,
+        row.pinned ? "Y" : "N",
         row.exposed ? "Y" : "N",
         row.registeredAt,
         row.author,
@@ -473,11 +474,12 @@ function NoticeBoard({ rows, refreshing, onRefresh }: { rows: NoticeRow[]; refre
       title="Notices"
       refreshing={refreshing}
       onRefresh={onRefresh}
-      headers={["NO", "Category Type", "Post Title", "Registration Date", "Author"]}
+      headers={["NO", "Category Type", "Post Title", "Pin", "Registration Date", "Author"]}
       rows={rows.map((row, index) => [
         index + 1,
         <Status key="a" value={row.audience} />,
         row.title,
+        row.pinned ? "Y" : "N",
         row.registeredAt,
         row.author,
       ])}

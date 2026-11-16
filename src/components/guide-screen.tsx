@@ -72,7 +72,7 @@ function GuideSection({ group }: { group: GuideGroup }) {
       </div>
       <ol>
         {group.questions.map((item) => (
-          <li key={item.action}>
+          <li key={item.text}>
             <div>
               <span className={`guide-kind ${item.kind}`}>{item.kind === "read" ? "Read" : "Change"}</span>
               <code>{item.action}</code>

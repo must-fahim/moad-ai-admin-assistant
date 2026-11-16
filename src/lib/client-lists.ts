@@ -118,6 +118,7 @@ export type FaqRow = {
   id: string;
   category: string;
   question: string;
+  pinned: boolean;
   exposed: boolean;
   registeredAt: string;
   author: string;
@@ -127,6 +128,7 @@ export type NoticeRow = {
   id: string;
   audience: string;
   title: string;
+  pinned: boolean;
   registeredAt: string;
   author: string;
 };
@@ -244,8 +246,8 @@ export async function loadClientLists(): Promise<ClientLists> {
     db().from("cargo_settlements").select("id, settlement_month, status, operation_count, distance_km, base_amount_krw, additional_amount_krw, tax_amount_krw, final_amount_krw, cargo_partners(member_number, name, phone, vehicle_type)").order("settlement_month", { ascending: false }),
     db().from("advertiser_settlements").select("id, campaign_id, settlement_month, status, coverage_type, discount_rate, final_amount_krw, campaigns(name, starts_on, ends_on, contact_name, contact_phone, applied_at, advertisers(company_name))").order("settlement_month", { ascending: false }),
     db().from("solo_pay_accounts").select("id, linked, balance_krw, advertisers(id, company_name, email, company_phone, contact_name, contact_phone, registered_at)").order("balance_krw", { ascending: false }),
-    db().from("faqs").select("id, category, question, exposed, author_name, created_at").order("sort_order", { ascending: true }),
-    db().from("notices").select("id, audience, title, author_name, created_at").order("sort_order", { ascending: true }),
+    db().from("faqs").select("id, category, question, pinned, exposed, author_name, created_at").order("sort_order", { ascending: true }),
+    db().from("notices").select("id, audience, title, pinned, author_name, created_at").order("sort_order", { ascending: true }),
   ]);
 
   const failed = [advertisers.error, partners.error, applications.error, campaigns.error, cargoSettlements.error, advertiserSettlements.error, solo.error, faqs.error, notices.error].find(Boolean);
@@ -412,6 +414,7 @@ export async function loadClientLists(): Promise<ClientLists> {
       id: String(row.id),
       category: String(row.category ?? ""),
       question: shown(row.question),
+      pinned: row.pinned === true,
       exposed: row.exposed === true,
       registeredAt: day(row.created_at).at,
       author: shown(row.author_name),
@@ -420,6 +423,7 @@ export async function loadClientLists(): Promise<ClientLists> {
       id: String(row.id),
       audience: String(row.audience ?? ""),
       title: shown(row.title),
+      pinned: row.pinned === true,
       registeredAt: day(row.created_at).at,
       author: shown(row.author_name),
     })),

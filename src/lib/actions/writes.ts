@@ -1,6 +1,6 @@
 import { writeAudit } from "@/lib/audit";
 import { db, unwrap, type Row } from "@/lib/db";
-import { booleanValue, canonical, day, integer, krw, labelize, like, monthStart, text } from "@/lib/labels";
+import { booleanValue, canonical, day, integer, km, krw, labelize, like, monthStart, text } from "@/lib/labels";
 import { FEE_RATES, lineAmount, recomputeSettlement, type FeeType } from "@/lib/settlement-math";
 import type { ActionContext, ActionHandler, ActionOutcome, Args, PendingAction } from "@/lib/actions/types";
 
@@ -269,6 +269,14 @@ async function requireCurrent(table: string, id: string | null, before: Record<s
 
 type SettlementAmount = "base" | "extras" | "tax" | "net";
 
+function percentInput(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 100) return value;
+  const raw = text(value).replace(/%/g, "").replace(/percent/gi, "").trim();
+  const parsed = Number(raw);
+  if (!raw || !Number.isFinite(parsed) || parsed < 0 || parsed > 100) return null;
+  return parsed;
+}
+
 function moneyInput(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value) && value >= 0) return Math.trunc(value);
   const parsed = integer(text(value).replace(/,/g, "").replace(/krw/gi, ""));
@@ -288,12 +296,74 @@ function previewSettlement(row: Row, field: SettlementAmount, amount: number) {
   return { base, extras, tax, net };
 }
 
+function countInput(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value) && value >= 0) return Math.trunc(value);
+  const parsed = integer(text(value).replace(/,/g, ""));
+  if (parsed == null || parsed < 0) return null;
+  return parsed;
+}
+
+function distanceInput(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value) && value >= 0) return value;
+  const raw = text(value).replace(/,/g, "").replace(/km/gi, "").trim();
+  const parsed = Number(raw);
+  if (!raw || !Number.isFinite(parsed) || parsed < 0) return null;
+  return parsed;
+}
+
+function settlementMeasureAction(column: "operation_count" | "distance_km"): ActionHandler {
+  const distance = column === "distance_km";
+  const action = distance ? "update_cargo_settlement_distance" : "update_cargo_settlement_operation_count";
+  const label = distance ? "distance" : "operation count";
+  return {
+    kind: "write",
+    description: distance
+      ? "Set the recorded kilometres on one driving-partner settlement that is still before settlement."
+      : "Set the operation count on one driving-partner settlement that is still before settlement.",
+    args: "partner_name or member_number or id, month, " + (distance ? "distance_km" : "operation_count"),
+    async run(args, ctx) {
+      const next = distance
+        ? distanceInput(args.distance_km ?? args.distance ?? args.amount)
+        : countInput(args.operation_count ?? args.count ?? args.amount);
+      if (next == null) return ask(distance ? "How many kilometres should I set?" : "What operation count should I set?");
+      const found = await findCargoSettlements(args);
+      return oneOf(ctx, action, { ...args, [column]: next }, found, "cargo settlement", (row) => ({
+        label: row.cargo_partners?.name ?? "Settlement",
+        detail: `${String(row.settlement_month).slice(0, 7)} · ${labelize(row.status)} · ${distance ? km(Number(row.distance_km || 0)) : row.operation_count}`,
+      }), async (row) => {
+        if (row.status !== "before_settlement") {
+          return refuse(ctx, action, `${row.cargo_partners?.name}'s ${String(row.settlement_month).slice(0, 7)} settlement is already ${labelize(row.status)}. Nothing was changed.`, "cargo_settlement", row.id);
+        }
+        const current = distance ? Number(row.distance_km || 0) : Number(row.operation_count || 0);
+        if (current === next) return ask(`${row.cargo_partners?.name}'s ${label} is already ${distance ? km(next) : next}. Nothing needs to change.`);
+        return queue(ctx, {
+          action,
+          args: { ...args, [column]: next },
+          targetType: "cargo_settlement",
+          targetId: row.id,
+          title: distance ? "Change settlement distance" : "Change operation count",
+          summary: `Set the ${label} for ${row.cargo_partners?.name} (${String(row.settlement_month).slice(0, 7)}) to ${distance ? km(next) : next} after you confirm.`,
+          before: { status: row.status, [column]: row[column] },
+          lines: detailLines([
+            ["Partner", row.cargo_partners?.name],
+            ["Month", String(row.settlement_month).slice(0, 7)],
+            [distance ? "Current distance" : "Current operation count", distance ? km(current) : String(current)],
+            [distance ? "New distance" : "New operation count", distance ? km(next) : String(next)],
+          ]),
+        });
+      });
+    },
+  };
+}
+
 function settlementAmountAction(field: SettlementAmount): ActionHandler {
-  const label = field === "base" ? "Base" : field === "extras" ? "Extras" : field === "tax" ? "Tax" : "Net";
+  const label = field === "base" ? "Base" : field === "extras" ? "Extras" : field === "tax" ? "Tax" : "Final settlement amount";
   const action = `update_cargo_settlement_${field}`;
   return {
     kind: "write",
-    description: `Set the ${label.toLowerCase()} amount, in KRW, on one driving-partner settlement that is still before settlement. Changing base or extras recalculates tax and net. Changing tax recalculates the net.`,
+    description: field === "net"
+      ? "Set the final settlement amount, in KRW, on one driving-partner settlement that is still before settlement. This is the net shown in the settlement table."
+      : `Set the ${label.toLowerCase()} amount, in KRW, on one driving-partner settlement that is still before settlement. Changing base or extras recalculates tax and the final amount. Changing tax recalculates the final amount.`,
     args: "partner_name or member_number or id, month, amount",
     async run(args, ctx) {
       const amount = moneyInput(args.amount ?? args[field] ?? args[`${field}_amount`]);
@@ -1139,6 +1209,8 @@ export const writeActions: Record<string, ActionHandler> = {
       });
     },
   },
+  update_cargo_settlement_operation_count: settlementMeasureAction("operation_count"),
+  update_cargo_settlement_distance: settlementMeasureAction("distance_km"),
   confirm_cargo_settlement: {
     kind: "write",
     description: "Confirm an operating-partner settlement that is still before settlement.",
@@ -1208,6 +1280,76 @@ export const writeActions: Record<string, ActionHandler> = {
   update_cargo_settlement_extras: settlementAmountAction("extras"),
   update_cargo_settlement_tax: settlementAmountAction("tax"),
   update_cargo_settlement_net: settlementAmountAction("net"),
+  update_advertiser_settlement_discount: {
+    kind: "write",
+    description: "Set the discount rate, from 0 to 100 percent, on an advertiser settlement that is still before payment.",
+    args: "campaign_name or company_name or id, month, discount_rate",
+    async run(args, ctx) {
+      const rate = percentInput(args.discount_rate ?? args.discount ?? args.rate);
+      if (rate == null) return ask("What discount rate should I set? Use a number from 0 to 100.");
+      const found = await findAdvertiserSettlements(args);
+      return oneOf(ctx, "update_advertiser_settlement_discount", { ...args, discount_rate: rate }, found, "advertiser settlement", (row) => ({
+        label: row.campaigns?.name ?? "Settlement",
+        detail: `${row.campaigns?.advertisers?.company_name ?? "—"} · ${labelize(row.status)} · ${Number(row.discount_rate)}%`,
+      }), async (row) => {
+        if (row.status !== "before_payment") {
+          return refuse(ctx, "update_advertiser_settlement_discount", `${row.campaigns?.name} is already ${labelize(row.status)}. Nothing was changed.`, "advertiser_settlement", row.id);
+        }
+        if (Number(row.discount_rate) === rate) return ask(`${row.campaigns?.name} already has a ${rate}% discount. Nothing needs to change.`);
+        return queue(ctx, {
+          action: "update_advertiser_settlement_discount",
+          args: { ...args, discount_rate: rate },
+          targetType: "advertiser_settlement",
+          targetId: row.id,
+          title: "Change discount rate",
+          summary: `Set the discount for ${row.campaigns?.name} (${String(row.settlement_month).slice(0, 7)}) from ${Number(row.discount_rate)}% to ${rate}% after you confirm.`,
+          before: { status: row.status, discount_rate: row.discount_rate },
+          lines: detailLines([
+            ["Campaign", row.campaigns?.name],
+            ["Company", row.campaigns?.advertisers?.company_name],
+            ["Month", String(row.settlement_month).slice(0, 7)],
+            ["Current discount", `${Number(row.discount_rate)}%`],
+            ["New discount", `${rate}%`],
+          ]),
+        });
+      });
+    },
+  },
+  update_advertiser_settlement_amount: {
+    kind: "write",
+    description: "Set the final payment amount, in KRW, on an advertiser settlement that is still before payment.",
+    args: "campaign_name or company_name or id, month, amount",
+    async run(args, ctx) {
+      const amount = moneyInput(args.amount ?? args.final_amount_krw ?? args.final_amount);
+      if (amount == null) return ask("What final payment amount, in KRW, should I set?");
+      const found = await findAdvertiserSettlements(args);
+      return oneOf(ctx, "update_advertiser_settlement_amount", { ...args, amount }, found, "advertiser settlement", (row) => ({
+        label: row.campaigns?.name ?? "Settlement",
+        detail: `${row.campaigns?.advertisers?.company_name ?? "—"} · ${labelize(row.status)} · ${krw(row.final_amount_krw)}`,
+      }), async (row) => {
+        if (row.status !== "before_payment") {
+          return refuse(ctx, "update_advertiser_settlement_amount", `${row.campaigns?.name} is already ${labelize(row.status)}. Nothing was changed.`, "advertiser_settlement", row.id);
+        }
+        if (Number(row.final_amount_krw) === amount) return ask(`${row.campaigns?.name} is already ${krw(amount)}. Nothing needs to change.`);
+        return queue(ctx, {
+          action: "update_advertiser_settlement_amount",
+          args: { ...args, amount },
+          targetType: "advertiser_settlement",
+          targetId: row.id,
+          title: "Change final payment amount",
+          summary: `Set the final payment for ${row.campaigns?.name} (${String(row.settlement_month).slice(0, 7)}) to ${krw(amount)} after you confirm.`,
+          before: { status: row.status, final_amount_krw: row.final_amount_krw },
+          lines: detailLines([
+            ["Campaign", row.campaigns?.name],
+            ["Company", row.campaigns?.advertisers?.company_name],
+            ["Month", String(row.settlement_month).slice(0, 7)],
+            ["Current amount", krw(row.final_amount_krw)],
+            ["New amount", krw(amount)],
+          ]),
+        });
+      });
+    },
+  },
   confirm_advertiser_payment: {
     kind: "write",
     description: "Mark an advertiser settlement as payment confirmed.",
@@ -1270,6 +1412,68 @@ export const writeActions: Record<string, ActionHandler> = {
           ["Current balance", krw(account.balance_krw)],
           ["Deduction", krw(amount)],
           ["Balance after", krw(account.balance_krw - amount)],
+        ]),
+      });
+    },
+  },
+  set_solo_pay_linked: {
+    kind: "write",
+    description: "Link or unlink one advertiser Solo Pay wallet. Use yes to link and no to unlink.",
+    args: "company_name or id, linked",
+    async run(args, ctx) {
+      const linked = booleanValue(args.linked ?? args.value ?? args.state);
+      if (linked == null) return ask("Should Solo Pay be linked? Yes or no.");
+      const found = await findAdvertisers(args, true);
+      if (found == null) return ask("Which advertiser wallet should I update?");
+      if (found.length === 0) return refuse(ctx, "set_solo_pay_linked", "No advertiser matched. Nothing was changed.");
+      if (found.length > 1) return ambiguous("set_solo_pay_linked", { ...args, linked }, found, "advertiser", advertiserCard);
+      const advertiser = found[0];
+      const account = unwrap<Row | null>(await db().from("solo_pay_accounts").select("*").eq("advertiser_id", advertiser.id).maybeSingle());
+      if (!account) return refuse(ctx, "set_solo_pay_linked", `${advertiser.company_name} has no Solo Pay account. Nothing was changed.`, "advertiser", advertiser.id);
+      if (account.linked === linked) return ask(`Solo Pay for ${advertiser.company_name} is already ${linked ? "linked" : "unlinked"}. Nothing needs to change.`);
+      return queue(ctx, {
+        action: "set_solo_pay_linked",
+        args: { ...args, linked },
+        targetType: "solo_pay_account",
+        targetId: account.id,
+        title: "Change Solo Pay link",
+        summary: `${linked ? "Link" : "Unlink"} Solo Pay for ${advertiser.company_name} after you confirm.`,
+        before: { linked: account.linked },
+        lines: detailLines([
+          ["Company", advertiser.company_name],
+          ["Current", account.linked ? "Linked" : "Not linked"],
+          ["New", linked ? "Linked" : "Not linked"],
+        ]),
+      });
+    },
+  },
+  set_solo_pay_balance: {
+    kind: "write",
+    description: "Set the Moad money balance, in KRW, on one Solo Pay wallet. The difference is recorded as a recharge or a deduction.",
+    args: "company_name or id, balance",
+    async run(args, ctx) {
+      const balance = moneyInput(args.balance ?? args.balance_krw ?? args.amount);
+      if (balance == null) return ask("What should the Moad money balance be, in KRW?");
+      const found = await findAdvertisers(args, true);
+      if (found == null) return ask("Which advertiser wallet should I update?");
+      if (found.length === 0) return refuse(ctx, "set_solo_pay_balance", "No advertiser matched. Nothing was changed.");
+      if (found.length > 1) return ambiguous("set_solo_pay_balance", { ...args, balance }, found, "advertiser", advertiserCard);
+      const advertiser = found[0];
+      const account = unwrap<Row | null>(await db().from("solo_pay_accounts").select("*").eq("advertiser_id", advertiser.id).maybeSingle());
+      if (!account) return refuse(ctx, "set_solo_pay_balance", `${advertiser.company_name} has no Solo Pay account. Nothing was changed.`, "advertiser", advertiser.id);
+      if (Number(account.balance_krw) === balance) return ask(`${advertiser.company_name} already has ${krw(balance)}. Nothing needs to change.`);
+      return queue(ctx, {
+        action: "set_solo_pay_balance",
+        args: { ...args, balance },
+        targetType: "solo_pay_account",
+        targetId: account.id,
+        title: "Change Moad money",
+        summary: `Set the Moad money balance for ${advertiser.company_name} from ${krw(account.balance_krw)} to ${krw(balance)} after you confirm.`,
+        before: { balance_krw: account.balance_krw },
+        lines: detailLines([
+          ["Company", advertiser.company_name],
+          ["Current balance", krw(account.balance_krw)],
+          ["New balance", krw(balance)],
         ]),
       });
     },
@@ -1419,30 +1623,36 @@ function postDelete(noun: string, table: string, column: "question" | "title"): 
 }
 
 function postFlag(noun: string, table: string, column: "question" | "title", field: "pinned" | "exposed", title: string, action: string): ActionHandler {
+  const pin = field === "pinned";
   return {
     kind: "write",
-    description: title,
+    description: pin
+      ? `Pin or unpin one ${noun}. Set pinned to true to pin it, or false to unpin it.`
+      : `Show or hide one ${noun}. Set exposed to true to show it, or false to hide it.`,
     args: `${column} or id, ${field}`,
     async run(args, ctx) {
       const flag = booleanValue(args[field] ?? args.value ?? args.state);
-      if (flag == null) return ask(field === "pinned" ? "Should I pin it or unpin it?" : "Should I show it or hide it?");
+      if (flag == null) return ask(pin ? "Should I pin it or unpin it?" : "Should I show it or hide it?");
       const found = await findPosts(table, args, column);
-      return oneOf(ctx, action, args, found, noun, (row) => ({ label: String(row[column]), detail: labelize(row.category || row.audience) }), (row) =>
-        queue(ctx, {
+      const verb = pin ? (flag ? "Pin" : "Unpin") : (flag ? "Show" : "Hide");
+      const state = pin ? (flag ? "pinned" : "unpinned") : (flag ? "shown" : "hidden");
+      return oneOf(ctx, action, args, found, noun, (row) => ({ label: String(row[column]), detail: labelize(row.category || row.audience) }), async (row) => {
+        if (row[field] === flag) return ask(`“${row[column]}” is already ${state}. Nothing needs to change.`);
+        return queue(ctx, {
           action,
           args: { ...args, [field]: flag },
           targetType: noun,
           targetId: row.id,
-          title,
-          summary: `Set ${field} on “${row[column]}” to ${flag ? "yes" : "no"} after you confirm.`,
+          title: `${verb} ${noun}`,
+          summary: `${verb} “${row[column]}” after you confirm.`,
           before: { [field]: row[field] },
           lines: detailLines([
             ["Post", row[column]],
-            ["Current", row[field] ? "Yes" : "No"],
-            ["New", flag ? "Yes" : "No"],
+            ["Current", row[field] ? (pin ? "Pinned" : "Shown") : (pin ? "Not pinned" : "Hidden")],
+            ["New", flag ? (pin ? "Pinned" : "Shown") : (pin ? "Not pinned" : "Hidden")],
           ]),
-        }),
-      );
+        });
+      });
     },
   };
 }
@@ -1725,6 +1935,26 @@ export async function commitAction(pending: PendingAction) {
       return commitSettlementAmount(pending, "tax");
     case "update_cargo_settlement_net":
       return commitSettlementAmount(pending, "net");
+    case "update_cargo_settlement_operation_count":
+      return commitSettlementMeasure(pending, "operation_count");
+    case "update_cargo_settlement_distance":
+      return commitSettlementMeasure(pending, "distance_km");
+    case "update_advertiser_settlement_discount": {
+      const current = await requireCurrent("advertiser_settlements", pending.target_id, pending.before_data, ["status", "discount_rate"]);
+      if (current.status !== "before_payment") throw new ActionRefusal("This bill is no longer waiting for payment. Nothing was changed.");
+      const rate = percentInput(pending.args.discount_rate);
+      if (rate == null) throw new ActionRefusal("A discount rate from 0 to 100 is required. Nothing was changed.");
+      unwrap(await db().from("advertiser_settlements").update({ discount_rate: rate }).eq("id", current.id));
+      return { summary: `The discount rate is now ${rate}%.`, before: { discount_rate: current.discount_rate }, after: { discount_rate: rate, id: current.id } };
+    }
+    case "update_advertiser_settlement_amount": {
+      const current = await requireCurrent("advertiser_settlements", pending.target_id, pending.before_data, ["status", "final_amount_krw"]);
+      if (current.status !== "before_payment") throw new ActionRefusal("This bill is no longer waiting for payment. Nothing was changed.");
+      const amount = moneyInput(pending.args.amount);
+      if (amount == null) throw new ActionRefusal("A final payment amount is required. Nothing was changed.");
+      unwrap(await db().from("advertiser_settlements").update({ final_amount_krw: amount }).eq("id", current.id));
+      return { summary: `The final payment amount is now ${krw(amount)}.`, before: { final_amount_krw: current.final_amount_krw }, after: { final_amount_krw: amount, id: current.id } };
+    }
     case "confirm_advertiser_payment": {
       const current = await requireCurrent("advertiser_settlements", pending.target_id, pending.before_data, ["status"]);
       if (current.status !== "before_payment") throw new ActionRefusal("This bill is no longer waiting for payment. Nothing was changed.");
@@ -1733,6 +1963,15 @@ export async function commitAction(pending: PendingAction) {
     }
     case "deduct_solo_pay":
       return commitDeduction(pending);
+    case "set_solo_pay_linked": {
+      const account = await requireCurrent("solo_pay_accounts", pending.target_id, pending.before_data, ["linked"]);
+      const linked = booleanValue(pending.args.linked);
+      if (linked == null) throw new ActionRefusal("Say whether Solo Pay should be linked. Nothing was changed.");
+      unwrap(await db().from("solo_pay_accounts").update({ linked }).eq("id", account.id));
+      return { summary: `Solo Pay is now ${linked ? "linked" : "unlinked"}.`, before: { linked: account.linked }, after: { linked, id: account.id } };
+    }
+    case "set_solo_pay_balance":
+      return commitSoloPayBalance(pending);
     case "create_faq":
       return commitPost("faqs", {
         category: canonical(args.category || "others"),
@@ -1815,6 +2054,21 @@ async function commitFees(pending: PendingAction) {
   };
 }
 
+async function commitSettlementMeasure(pending: PendingAction, column: "operation_count" | "distance_km") {
+  const current = await requireCurrent("cargo_settlements", pending.target_id, pending.before_data, ["status", column]);
+  if (current.status !== "before_settlement") throw new ActionRefusal("This settlement can no longer be edited. Nothing was changed.");
+  const distance = column === "distance_km";
+  const next = distance ? distanceInput(pending.args.distance_km) : countInput(pending.args.operation_count);
+  if (next == null) throw new ActionRefusal(distance ? "A distance in kilometres is required. Nothing was changed." : "An operation count is required. Nothing was changed.");
+  unwrap(await db().from("cargo_settlements").update({ [column]: next }).eq("id", current.id));
+  const shown = distance ? km(next) : String(next);
+  return {
+    summary: `The ${distance ? "distance" : "operation count"} is now ${shown}.`,
+    before: { [column]: current[column] },
+    after: { [column]: next, id: current.id },
+  };
+}
+
 async function commitSettlementAmount(pending: PendingAction, field: SettlementAmount) {
   const current = await requireCurrent("cargo_settlements", pending.target_id, pending.before_data, ["status", "base_amount_krw", "additional_amount_krw", "tax_amount_krw", "final_amount_krw"]);
   if (current.status !== "before_settlement") throw new ActionRefusal("This settlement can no longer be edited. Nothing was changed.");
@@ -1834,6 +2088,25 @@ async function commitSettlementAmount(pending: PendingAction, field: SettlementA
     before: pending.before_data,
     after: { id: current.id, ...patch },
   };
+}
+
+async function commitSoloPayBalance(pending: PendingAction) {
+  const account = await requireCurrent("solo_pay_accounts", pending.target_id, pending.before_data, ["balance_krw"]);
+  const balance = moneyInput(pending.args.balance);
+  if (balance == null) throw new ActionRefusal("A balance in KRW is required. Nothing was changed.");
+  const delta = balance - Number(account.balance_krw);
+  if (delta === 0) throw new ActionRefusal(`The balance is already ${krw(balance)}. Nothing was changed.`);
+  const patch = delta > 0
+    ? { balance_krw: balance, total_accumulated_krw: Number(account.total_accumulated_krw) + delta, month_topup_krw: Number(account.month_topup_krw) + delta }
+    : { balance_krw: balance, month_deduction_krw: Number(account.month_deduction_krw) + Math.abs(delta) };
+  unwrap(await db().from("solo_pay_accounts").update(patch).eq("id", account.id));
+  unwrap(await db().from("solo_pay_transactions").insert({
+    advertiser_id: account.advertiser_id,
+    category: delta > 0 ? "recharge" : "deduction",
+    detail: text(pending.args.detail) || (delta > 0 ? "Admin recharge" : "Admin balance adjustment"),
+    amount_krw: delta,
+  }));
+  return { summary: `The Moad money balance is now ${krw(balance)}.`, before: { balance_krw: account.balance_krw }, after: { balance_krw: balance, id: account.id } };
 }
 
 async function commitDeduction(pending: PendingAction) {
@@ -1870,7 +2143,8 @@ async function commitFlag(table: string, pending: PendingAction, field: "pinned"
   const value = booleanValue(pending.args[field]);
   if (value == null) throw new ActionRefusal("The requested value was missing. Nothing was changed.");
   unwrap(await db().from(table).update({ [field]: value }).eq("id", current.id));
-  return { summary: `${current[column]} is now ${value ? "on" : "off"} for ${field}.`, before: { [field]: current[field] }, after: { [field]: value, id: current.id } };
+  const state = field === "pinned" ? (value ? "pinned" : "unpinned") : (value ? "shown" : "hidden");
+  return { summary: `“${current[column]}” is now ${state}.`, before: { [field]: current[field] }, after: { [field]: value, id: current.id } };
 }
 
 async function commitReorder(table: string, pending: PendingAction, column: "question" | "title") {
