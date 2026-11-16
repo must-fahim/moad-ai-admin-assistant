@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { PushpinOutlined } from "@ant-design/icons";
 import { APP_PAGES } from "@/lib/catalog";
 import type { AdvertiserRow, AdvertiserSettlementRow, ApplicationRow, CampaignRow, CargoSettlementRow, ClientLists, FaqRow, NoticeRow, PartnerCampaignRow, PartnerRow, SoloRow } from "@/lib/client-lists";
 import { SkeletonTable } from "@/components/loader";
@@ -264,7 +265,7 @@ function BlacklistBoard({ advertisers, partners, refreshing, onRefresh }: { adve
                   <td>{row.name}</td>
                   <td>{row.memberNumber}</td>
                   <td>{row.phone}</td>
-                  <td>—</td>
+                  <td>{row.blacklistReason}</td>
                   <td>{row.registeredAt}</td>
                   <td>—</td>
                   <td>—</td>
@@ -276,7 +277,7 @@ function BlacklistBoard({ advertisers, partners, refreshing, onRefresh }: { adve
                 <td>{row.companyName}</td>
                 <td>{row.email}</td>
                 <td>{row.companyPhone}</td>
-                <td>—</td>
+                <td>{row.blacklistReason}</td>
                 <td>{row.registeredAt}</td>
                 <td>—</td>
                 <td>—</td>
@@ -456,7 +457,7 @@ function FaqBoard({ rows, refreshing, onRefresh }: { rows: FaqRow[]; refreshing:
       onRefresh={onRefresh}
       headers={["NO.", "Category", "Question", "Exposure", "Registration Date", "Author"]}
       rows={rows.map((row, index) => [
-        index + 1,
+        row.pinned ? <PinMark key="pin" /> : index + 1,
         <Status key="c" value={row.category} />,
         row.question,
         row.exposed ? "Y" : "N",
@@ -475,7 +476,7 @@ function NoticeBoard({ rows, refreshing, onRefresh }: { rows: NoticeRow[]; refre
       onRefresh={onRefresh}
       headers={["NO", "Category Type", "Post Title", "Registration Date", "Author"]}
       rows={rows.map((row, index) => [
-        index + 1,
+        row.pinned ? <PinMark key="pin" /> : index + 1,
         <Status key="a" value={row.audience} />,
         row.title,
         row.registeredAt,
@@ -483,6 +484,10 @@ function NoticeBoard({ rows, refreshing, onRefresh }: { rows: NoticeRow[]; refre
       ])}
     />
   );
+}
+
+function PinMark() {
+  return <PushpinOutlined className="row-pin" aria-label="Pinned" />;
 }
 
 function SimpleBoard({

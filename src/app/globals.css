@@ -642,6 +642,7 @@ textarea:focus-visible {
   border-bottom: 1px solid var(--line);
 }
 .client-table td { padding: 12px; border-bottom: 1px solid #f1f5f9; white-space: nowrap; font-size: 14px; }
+.row-pin { color: #64748b; font-size: 16px; }
 .client-table tr:last-child td { border-bottom: 0; }
 .client-table tbody tr:hover td { background: #f8fbff; }
 .client-empty { color: var(--muted); text-align: center; padding: 28px 12px; }

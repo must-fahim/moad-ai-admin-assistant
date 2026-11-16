@@ -24,6 +24,7 @@ create table if not exists public.advertisers (
   contact_name text,
   contact_phone text,
   business_registration_no text,
+  blacklist_reason text,
   status text not null check (status in ('pending_approval', 'approved', 'rejected', 'blacklist')),
   registered_at timestamptz not null default now()
 );
@@ -37,6 +38,7 @@ create table if not exists public.cargo_partners (
   vehicle_type text,
   fixed_operating_location boolean,
   region_label text,
+  blacklist_reason text,
   status text not null check (status in ('under_review', 'approved', 'rejected', 'blacklist')),
   registered_at timestamptz not null default now()
 );
@@ -197,6 +199,9 @@ create index if not exists cargo_partners_name_idx on public.cargo_partners (nam
 create index if not exists cargo_partners_status_idx on public.cargo_partners (status);
 create index if not exists campaigns_status_idx on public.campaigns (status);
 create index if not exists campaigns_name_idx on public.campaigns (name);
+alter table public.advertisers add column if not exists blacklist_reason text;
+alter table public.cargo_partners add column if not exists blacklist_reason text;
+
 create index if not exists chat_messages_admin_idx on public.chat_messages (admin_id, created_at);
 create index if not exists audit_logs_created_idx on public.audit_logs (created_at desc);
 

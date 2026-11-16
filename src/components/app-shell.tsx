@@ -13,6 +13,8 @@ const PROMPTS = [
   "Find cargo partners named Minho Park",
   "Stop the Harbor Night campaign",
   "Summarize cargo settlements for 2026-11",
+  "Pin the FAQ How does monthly settlement work?",
+  "Unpin the FAQ How does monthly settlement work?",
 ];
 
 const NAV = [
