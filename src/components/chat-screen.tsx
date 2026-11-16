@@ -121,7 +121,6 @@ export function ChatScreen({ initialDraft = "" }: { initialDraft?: string }) {
     if (body.message) {
       setMessages((current) => current.map((item) => (item.id === body.message.id ? body.message : item)));
     }
-    toast.success(intent === "confirm" ? "Confirmed." : intent === "cancel" ? "Cancelled." : "Refused.");
   }
 
   async function clearChat() {
