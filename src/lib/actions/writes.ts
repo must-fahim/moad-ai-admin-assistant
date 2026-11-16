@@ -423,6 +423,96 @@ export const writeActions: Record<string, ActionHandler> = {
       });
     },
   },
+  change_advertiser_company_name: {
+    kind: "write",
+    description: "Change the company name of one advertiser. company_name is the current name used to find the company. new_company_name is the replacement.",
+    args: "current company_name or email or id, new_company_name",
+    async run(args, ctx) {
+      const next = text(args.new_company_name) || text(args.new_name);
+      if (!next) return ask("What should the new company name be?");
+      const found = await findAdvertisers({ ...args, company_name: text(args.current_company_name) || text(args.company_name) || text(args.company) }, true);
+      return oneOf(ctx, "change_advertiser_company_name", args, found, "advertiser", advertiserCard, async (row) => {
+        if (row.company_name === next) return ask(`${row.company_name} already uses that company name. Nothing needs to change.`);
+        return queue(ctx, {
+          action: "change_advertiser_company_name",
+          args: { ...args, new_company_name: next },
+          targetType: "advertiser",
+          targetId: row.id,
+          title: "Change advertiser company name",
+          summary: `Change the company name from “${row.company_name}” to “${next}” after you confirm.`,
+          before: { company_name: row.company_name },
+          lines: detailLines([
+            ["Current company name", row.company_name],
+            ["New company name", next],
+            ["Email", row.email],
+          ]),
+        });
+      });
+    },
+  },
+  change_advertiser_email: {
+    kind: "write",
+    description: "Change the email of one advertiser. Find the company by company_name or id. Put the replacement address in new_email, not in email.",
+    args: "company_name or id, new_email",
+    async run(args, ctx) {
+      const next = text(args.new_email);
+      if (!next) return ask("What should the new email be?");
+      if (!emailLooksValid(next)) return ask("Give the new email as a full address, such as team@company.example.");
+      const company = text(args.company_name) || text(args.company) || text(args.name);
+      const found = await findAdvertisers({
+        id: args.id,
+        advertiser_id: args.advertiser_id,
+        company_name: company,
+        email: text(args.current_email) || (company ? "" : text(args.email)),
+      }, false);
+      return oneOf(ctx, "change_advertiser_email", args, found, "advertiser", advertiserCard, async (row) => {
+        if (String(row.email).toLowerCase() === next.toLowerCase()) return ask(`${row.company_name} already uses ${next}. Nothing needs to change.`);
+        const taken = await advertiserEmailOwner(next, row.id);
+        if (taken) return refuse(ctx, "change_advertiser_email", `${next} is already used by ${taken.company_name}. Nothing was changed.`, "advertiser", row.id);
+        return queue(ctx, {
+          action: "change_advertiser_email",
+          args: { ...args, new_email: next },
+          targetType: "advertiser",
+          targetId: row.id,
+          title: "Change advertiser email",
+          summary: `Change the email for ${row.company_name} from ${row.email} to ${next} after you confirm.`,
+          before: { email: row.email },
+          lines: detailLines([
+            ["Company", row.company_name],
+            ["Current email", row.email],
+            ["New email", next],
+          ]),
+        });
+      });
+    },
+  },
+  change_advertiser_company_phone: {
+    kind: "write",
+    description: "Change the company phone number of one advertiser. This is the company phone, not the contact phone.",
+    args: "company_name or email or id, company_phone",
+    async run(args, ctx) {
+      const next = text(args.new_company_phone) || text(args.company_phone);
+      if (!next) return ask("What should the new company phone number be?");
+      const found = await findAdvertisers({ ...args, company_name: text(args.company_name) || text(args.company) || text(args.name) }, false);
+      return oneOf(ctx, "change_advertiser_company_phone", args, found, "advertiser", advertiserCard, async (row) => {
+        if (row.company_phone === next) return ask(`${row.company_name} already has company phone ${next}. Nothing needs to change.`);
+        return queue(ctx, {
+          action: "change_advertiser_company_phone",
+          args: { ...args, company_phone: next },
+          targetType: "advertiser",
+          targetId: row.id,
+          title: "Change advertiser company phone",
+          summary: `Change the company phone for ${row.company_name} from ${row.company_phone || "—"} to ${next} after you confirm.`,
+          before: { company_phone: row.company_phone },
+          lines: detailLines([
+            ["Company", row.company_name],
+            ["Current company phone", row.company_phone || "—"],
+            ["New company phone", next],
+          ]),
+        });
+      });
+    },
+  },
   change_cargo_partner_status: {
     kind: "write",
     description: "Change a cargo partner status to under review, approved, rejected, or blacklist.",
@@ -990,6 +1080,15 @@ function labelOf(row: Row) {
   return row.company_name || row.name || row.member_number || row.title || row.question || "The record";
 }
 
+function emailLooksValid(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+async function advertiserEmailOwner(email: string, exceptId: string) {
+  const rows = unwrap<Row[]>(await db().from("advertisers").select("id, company_name").ilike("email", email).limit(5));
+  return rows.find((row) => row.id !== exceptId) ?? null;
+}
+
 export async function commitAction(pending: PendingAction) {
   const args = pending.args || {};
   switch (pending.action_name) {
@@ -1008,6 +1107,29 @@ export async function commitAction(pending: PendingAction) {
       if (!next) throw new ActionRefusal("A contact phone number is required. Nothing was changed.");
       unwrap(await db().from("advertisers").update({ contact_phone: next }).eq("id", current.id));
       return { summary: `The contact phone for ${current.company_name} is now ${next}.`, before: { contact_phone: current.contact_phone }, after: { contact_phone: next, id: current.id } };
+    }
+    case "change_advertiser_company_name": {
+      const current = await requireCurrent("advertisers", pending.target_id, pending.before_data, ["company_name"]);
+      const next = text(args.new_company_name);
+      if (!next) throw new ActionRefusal("A company name is required. Nothing was changed.");
+      unwrap(await db().from("advertisers").update({ company_name: next }).eq("id", current.id));
+      return { summary: `The company name is now ${next}.`, before: { company_name: current.company_name }, after: { company_name: next, id: current.id } };
+    }
+    case "change_advertiser_email": {
+      const current = await requireCurrent("advertisers", pending.target_id, pending.before_data, ["email"]);
+      const next = text(args.new_email);
+      if (!next || !emailLooksValid(next)) throw new ActionRefusal("A valid email is required. Nothing was changed.");
+      const taken = await advertiserEmailOwner(next, current.id);
+      if (taken) throw new ActionRefusal(`${next} is already used by ${taken.company_name}. Nothing was changed.`);
+      unwrap(await db().from("advertisers").update({ email: next }).eq("id", current.id));
+      return { summary: `The email for ${current.company_name} is now ${next}.`, before: { email: current.email }, after: { email: next, id: current.id } };
+    }
+    case "change_advertiser_company_phone": {
+      const current = await requireCurrent("advertisers", pending.target_id, pending.before_data, ["company_phone"]);
+      const next = text(args.company_phone);
+      if (!next) throw new ActionRefusal("A company phone number is required. Nothing was changed.");
+      unwrap(await db().from("advertisers").update({ company_phone: next }).eq("id", current.id));
+      return { summary: `The company phone for ${current.company_name} is now ${next}.`, before: { company_phone: current.company_phone }, after: { company_phone: next, id: current.id } };
     }
     case "change_cargo_partner_status":
       return updateStatus("cargo_partners", pending, canonical(args.status));

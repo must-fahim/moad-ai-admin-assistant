@@ -15,11 +15,14 @@ export const GUIDE_GROUPS: GuideGroup[] = [
   {
     id: "advertisers",
     title: "Advertisers",
-    summary: "Search or count companies, then change one company status, contact name, or contact phone. Statuses: pending approval, approved, rejected, blacklist.",
+    summary: "Search or count companies, then change one company name, email, company phone, status, contact name, or contact phone. Statuses: pending approval, approved, rejected, blacklist.",
     questions: [
       { action: "count_advertisers", kind: "read", text: "How many advertisers are approved?" },
       { action: "search_advertisers", kind: "read", text: "List advertisers named Blue Depot" },
       { action: "change_advertiser_status", kind: "write", text: "Set Northline Ads to pending approval" },
+      { action: "change_advertiser_company_name", kind: "write", text: "Change the company name of Mapo Studio to Mapo Creative" },
+      { action: "change_advertiser_email", kind: "write", text: "Change the email for Mapo Studio to hello@mapo.example" },
+      { action: "change_advertiser_company_phone", kind: "write", text: "Change the company phone for Mapo Studio to 02-5555-9000" },
       { action: "change_advertiser_contact_name", kind: "write", text: "Change the contact name for Mapo Studio to Mina Park" },
       { action: "change_advertiser_contact_phone", kind: "write", text: "Change the contact phone for Mapo Studio to 010-5555-9001" },
     ],
