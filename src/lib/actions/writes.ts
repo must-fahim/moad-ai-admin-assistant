@@ -568,6 +568,182 @@ export const writeActions: Record<string, ActionHandler> = {
       );
     },
   },
+  change_cargo_partner_member_number: {
+    kind: "write",
+    description: "Change a cargo partner member number. member_number is the current number used to find the partner. new_member_number is the replacement.",
+    args: "current member_number or name or id, new_member_number",
+    async run(args, ctx) {
+      const next = text(args.new_member_number);
+      if (!next) return ask("What should the new member number be?");
+      const name = text(args.name) || text(args.partner_name);
+      const currentMember = text(args.current_member_number) || (text(args.member_number) !== next ? text(args.member_number) : "");
+      const found = await findCargo({
+        id: args.id,
+        cargo_partner_id: args.cargo_partner_id,
+        name,
+        member_number: currentMember,
+      });
+      return oneOf(ctx, "change_cargo_partner_member_number", args, found, "cargo partner", cargoCard, async (row) => {
+        if (row.member_number === next) return ask(`${row.name} already uses member number ${next}. Nothing needs to change.`);
+        const taken = await cargoMemberOwner(next, row.id);
+        if (taken) return refuse(ctx, "change_cargo_partner_member_number", `${next} is already used by ${taken.name}. Nothing was changed.`, "cargo_partner", row.id);
+        return queue(ctx, {
+          action: "change_cargo_partner_member_number",
+          args: { ...args, new_member_number: next },
+          targetType: "cargo_partner",
+          targetId: row.id,
+          title: "Change cargo partner member number",
+          summary: `Change the member number for ${row.name} from ${row.member_number} to ${next} after you confirm.`,
+          before: { member_number: row.member_number },
+          lines: detailLines([
+            ["Partner", row.name],
+            ["Current member number", row.member_number],
+            ["New member number", next],
+          ]),
+        });
+      });
+    },
+  },
+  change_cargo_partner_phone: {
+    kind: "write",
+    description: "Change the mobile phone number of one cargo partner.",
+    args: "name or member_number or id, phone",
+    async run(args, ctx) {
+      const next = text(args.new_phone) || text(args.phone);
+      if (!next) return ask("What should the new mobile phone number be?");
+      const found = await findCargo(args);
+      return oneOf(ctx, "change_cargo_partner_phone", args, found, "cargo partner", cargoCard, async (row) => {
+        if (row.phone === next) return ask(`${row.name} already has phone ${next}. Nothing needs to change.`);
+        return queue(ctx, {
+          action: "change_cargo_partner_phone",
+          args: { ...args, phone: next },
+          targetType: "cargo_partner",
+          targetId: row.id,
+          title: "Change cargo partner phone",
+          summary: `Change the phone for ${row.name} (${row.member_number}) from ${row.phone || "—"} to ${next} after you confirm.`,
+          before: { phone: row.phone },
+          lines: detailLines([
+            ["Partner", row.name],
+            ["Member", row.member_number],
+            ["Current phone", row.phone || "—"],
+            ["New phone", next],
+          ]),
+        });
+      });
+    },
+  },
+  change_cargo_partner_vehicle_number: {
+    kind: "write",
+    description: "Change the vehicle number of one cargo partner.",
+    args: "name or member_number or id, vehicle_number",
+    async run(args, ctx) {
+      const next = text(args.new_vehicle_number) || text(args.vehicle_number);
+      if (!next) return ask("What should the new vehicle number be?");
+      const found = await findCargo(args);
+      return oneOf(ctx, "change_cargo_partner_vehicle_number", args, found, "cargo partner", cargoCard, async (row) => {
+        if (row.vehicle_number === next) return ask(`${row.name} already has vehicle number ${next}. Nothing needs to change.`);
+        return queue(ctx, {
+          action: "change_cargo_partner_vehicle_number",
+          args: { ...args, vehicle_number: next },
+          targetType: "cargo_partner",
+          targetId: row.id,
+          title: "Change cargo partner vehicle number",
+          summary: `Change the vehicle number for ${row.name} (${row.member_number}) from ${row.vehicle_number || "—"} to ${next} after you confirm.`,
+          before: { vehicle_number: row.vehicle_number },
+          lines: detailLines([
+            ["Partner", row.name],
+            ["Member", row.member_number],
+            ["Current vehicle number", row.vehicle_number || "—"],
+            ["New vehicle number", next],
+          ]),
+        });
+      });
+    },
+  },
+  change_cargo_partner_vehicle_type: {
+    kind: "write",
+    description: "Change the vehicle type of one cargo partner, such as Top / Large or Cargo / Small.",
+    args: "name or member_number or id, vehicle_type",
+    async run(args, ctx) {
+      const next = text(args.new_vehicle_type) || text(args.vehicle_type);
+      if (!next) return ask("What should the new vehicle type be?");
+      const found = await findCargo(args);
+      return oneOf(ctx, "change_cargo_partner_vehicle_type", args, found, "cargo partner", cargoCard, async (row) => {
+        if (row.vehicle_type === next) return ask(`${row.name} already has vehicle type ${next}. Nothing needs to change.`);
+        return queue(ctx, {
+          action: "change_cargo_partner_vehicle_type",
+          args: { ...args, vehicle_type: next },
+          targetType: "cargo_partner",
+          targetId: row.id,
+          title: "Change cargo partner vehicle type",
+          summary: `Change the vehicle type for ${row.name} (${row.member_number}) from ${row.vehicle_type || "—"} to ${next} after you confirm.`,
+          before: { vehicle_type: row.vehicle_type },
+          lines: detailLines([
+            ["Partner", row.name],
+            ["Member", row.member_number],
+            ["Current vehicle type", row.vehicle_type || "—"],
+            ["New vehicle type", next],
+          ]),
+        });
+      });
+    },
+  },
+  change_cargo_partner_fixed_location: {
+    kind: "write",
+    description: "Set whether a cargo partner has a fixed operating location. Use yes or no.",
+    args: "name or member_number or id, fixed_operating_location",
+    async run(args, ctx) {
+      const flag = booleanValue(args.fixed_operating_location ?? args.fixed_location ?? args.value);
+      if (flag == null) return ask("Should the fixed operating location be yes or no?");
+      const found = await findCargo(args);
+      return oneOf(ctx, "change_cargo_partner_fixed_location", args, found, "cargo partner", cargoCard, async (row) => {
+        if (row.fixed_operating_location === flag) return ask(`${row.name} already has fixed operating location set to ${flag ? "yes" : "no"}. Nothing needs to change.`);
+        return queue(ctx, {
+          action: "change_cargo_partner_fixed_location",
+          args: { ...args, fixed_operating_location: flag },
+          targetType: "cargo_partner",
+          targetId: row.id,
+          title: "Change fixed operating location",
+          summary: `Set fixed operating location for ${row.name} (${row.member_number}) to ${flag ? "yes" : "no"} after you confirm.`,
+          before: { fixed_operating_location: row.fixed_operating_location },
+          lines: detailLines([
+            ["Partner", row.name],
+            ["Member", row.member_number],
+            ["Current", row.fixed_operating_location ? "Yes" : "No"],
+            ["New", flag ? "Yes" : "No"],
+          ]),
+        });
+      });
+    },
+  },
+  change_cargo_partner_region: {
+    kind: "write",
+    description: "Change the region label of one cargo partner, such as Seoul > Songpa-gu.",
+    args: "name or member_number or id, region",
+    async run(args, ctx) {
+      const next = text(args.new_region) || text(args.region) || text(args.region_label);
+      if (!next) return ask("What should the new region be?");
+      const found = await findCargo(args);
+      return oneOf(ctx, "change_cargo_partner_region", args, found, "cargo partner", cargoCard, async (row) => {
+        if (row.region_label === next) return ask(`${row.name} is already in ${next}. Nothing needs to change.`);
+        return queue(ctx, {
+          action: "change_cargo_partner_region",
+          args: { ...args, region: next },
+          targetType: "cargo_partner",
+          targetId: row.id,
+          title: "Change cargo partner region",
+          summary: `Change the region for ${row.name} (${row.member_number}) from ${row.region_label || "—"} to ${next} after you confirm.`,
+          before: { region_label: row.region_label },
+          lines: detailLines([
+            ["Partner", row.name],
+            ["Member", row.member_number],
+            ["Current region", row.region_label || "—"],
+            ["New region", next],
+          ]),
+        });
+      });
+    },
+  },
   create_campaign: {
     kind: "write",
     description: "Create a campaign for one uniquely identified advertiser.",
@@ -1089,6 +1265,11 @@ async function advertiserEmailOwner(email: string, exceptId: string) {
   return rows.find((row) => row.id !== exceptId) ?? null;
 }
 
+async function cargoMemberOwner(memberNumber: string, exceptId: string) {
+  const rows = unwrap<Row[]>(await db().from("cargo_partners").select("id, name").eq("member_number", memberNumber).limit(5));
+  return rows.find((row) => row.id !== exceptId) ?? null;
+}
+
 export async function commitAction(pending: PendingAction) {
   const args = pending.args || {};
   switch (pending.action_name) {
@@ -1138,6 +1319,50 @@ export async function commitAction(pending: PendingAction) {
       const newName = text(args.new_name);
       unwrap(await db().from("cargo_partners").update({ name: newName }).eq("id", current.id));
       return { summary: `${current.member_number} is now named ${newName}.`, before: { name: current.name }, after: { name: newName, id: current.id } };
+    }
+    case "change_cargo_partner_member_number": {
+      const current = await requireCurrent("cargo_partners", pending.target_id, pending.before_data, ["member_number"]);
+      const next = text(args.new_member_number);
+      if (!next) throw new ActionRefusal("A member number is required. Nothing was changed.");
+      const taken = await cargoMemberOwner(next, current.id);
+      if (taken) throw new ActionRefusal(`${next} is already used by ${taken.name}. Nothing was changed.`);
+      unwrap(await db().from("cargo_partners").update({ member_number: next }).eq("id", current.id));
+      return { summary: `${current.name} is now member ${next}.`, before: { member_number: current.member_number }, after: { member_number: next, id: current.id } };
+    }
+    case "change_cargo_partner_phone": {
+      const current = await requireCurrent("cargo_partners", pending.target_id, pending.before_data, ["phone"]);
+      const next = text(args.phone);
+      if (!next) throw new ActionRefusal("A phone number is required. Nothing was changed.");
+      unwrap(await db().from("cargo_partners").update({ phone: next }).eq("id", current.id));
+      return { summary: `The phone for ${current.name} is now ${next}.`, before: { phone: current.phone }, after: { phone: next, id: current.id } };
+    }
+    case "change_cargo_partner_vehicle_number": {
+      const current = await requireCurrent("cargo_partners", pending.target_id, pending.before_data, ["vehicle_number"]);
+      const next = text(args.vehicle_number);
+      if (!next) throw new ActionRefusal("A vehicle number is required. Nothing was changed.");
+      unwrap(await db().from("cargo_partners").update({ vehicle_number: next }).eq("id", current.id));
+      return { summary: `The vehicle number for ${current.name} is now ${next}.`, before: { vehicle_number: current.vehicle_number }, after: { vehicle_number: next, id: current.id } };
+    }
+    case "change_cargo_partner_vehicle_type": {
+      const current = await requireCurrent("cargo_partners", pending.target_id, pending.before_data, ["vehicle_type"]);
+      const next = text(args.vehicle_type);
+      if (!next) throw new ActionRefusal("A vehicle type is required. Nothing was changed.");
+      unwrap(await db().from("cargo_partners").update({ vehicle_type: next }).eq("id", current.id));
+      return { summary: `The vehicle type for ${current.name} is now ${next}.`, before: { vehicle_type: current.vehicle_type }, after: { vehicle_type: next, id: current.id } };
+    }
+    case "change_cargo_partner_fixed_location": {
+      const current = await requireCurrent("cargo_partners", pending.target_id, pending.before_data, ["fixed_operating_location"]);
+      const flag = booleanValue(args.fixed_operating_location);
+      if (flag == null) throw new ActionRefusal("Fixed operating location must be yes or no. Nothing was changed.");
+      unwrap(await db().from("cargo_partners").update({ fixed_operating_location: flag }).eq("id", current.id));
+      return { summary: `Fixed operating location for ${current.name} is now ${flag ? "yes" : "no"}.`, before: { fixed_operating_location: current.fixed_operating_location }, after: { fixed_operating_location: flag, id: current.id } };
+    }
+    case "change_cargo_partner_region": {
+      const current = await requireCurrent("cargo_partners", pending.target_id, pending.before_data, ["region_label"]);
+      const next = text(args.region);
+      if (!next) throw new ActionRefusal("A region is required. Nothing was changed.");
+      unwrap(await db().from("cargo_partners").update({ region_label: next }).eq("id", current.id));
+      return { summary: `The region for ${current.name} is now ${next}.`, before: { region_label: current.region_label }, after: { region_label: next, id: current.id } };
     }
     case "create_campaign": {
       const advertiser = await loadOne("advertisers", pending.target_id || "");

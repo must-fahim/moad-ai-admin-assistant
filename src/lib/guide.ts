@@ -30,12 +30,18 @@ export const GUIDE_GROUPS: GuideGroup[] = [
   {
     id: "cargo",
     title: "Cargo partners",
-    summary: "Search or count partners by name, member number, status, vehicle, or region. A shared name such as Minho Park returns every match and does not open a confirmation card.",
+    summary: "Search or count partners by name, member number, status, vehicle, or region. You can change the member number, name, phone, vehicle number, vehicle type, fixed location, region, or status. A shared name such as Minho Park returns every match and does not open a confirmation card.",
     questions: [
       { action: "count_cargo_partners", kind: "read", text: "How many cargo partners are approved?" },
       { action: "search_cargo_partners", kind: "read", text: "Find cargo partners named Minho Park" },
       { action: "change_cargo_partner_status", kind: "write", text: "Approve cargo partner Hana Cho" },
+      { action: "change_cargo_partner_member_number", kind: "write", text: "Change the member number 4321-400-032 to 4321-400-099" },
       { action: "change_cargo_partner_name", kind: "write", text: "Change the name of member 4321-200-010 to Sora Kim" },
+      { action: "change_cargo_partner_phone", kind: "write", text: "Change the phone of member 4321-400-032 to 010-4000-0099" },
+      { action: "change_cargo_partner_vehicle_number", kind: "write", text: "Change the vehicle number of member 4321-500-040 to 서울40바5099" },
+      { action: "change_cargo_partner_vehicle_type", kind: "write", text: "Change the vehicle type of member 4321-500-040 to Top / Medium" },
+      { action: "change_cargo_partner_fixed_location", kind: "write", text: "Set fixed operating location for member 4321-400-032 to yes" },
+      { action: "change_cargo_partner_region", kind: "write", text: "Change the region of member 4321-400-033 to Seoul > Gangnam-gu" },
     ],
   },
   {
