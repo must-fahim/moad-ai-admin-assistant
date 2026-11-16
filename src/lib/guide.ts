@@ -15,11 +15,12 @@ export const GUIDE_GROUPS: GuideGroup[] = [
   {
     id: "advertisers",
     title: "Advertisers",
-    summary: "Search or count companies, then change one company name, email, company phone, status, contact name, or contact phone. Statuses: pending approval, approved, rejected, blacklist.",
+    summary: "Search or count companies, then change one company name, email, company phone, status, contact name, contact phone, or blacklist reason. Statuses: pending approval, approved, rejected, blacklist.",
     questions: [
       { action: "count_advertisers", kind: "read", text: "How many advertisers are approved?" },
       { action: "search_advertisers", kind: "read", text: "List advertisers named Blue Depot" },
       { action: "change_advertiser_status", kind: "write", text: "Set Northline Ads to pending approval" },
+      { action: "set_advertiser_blacklist_reason", kind: "write", text: "Set the blacklist reason for Grey Market Co to policy violation" },
       { action: "change_advertiser_company_name", kind: "write", text: "Change the company name of Mapo Studio to Mapo Creative" },
       { action: "change_advertiser_email", kind: "write", text: "Change the email for Mapo Studio to hello@mapo.example" },
       { action: "change_advertiser_company_phone", kind: "write", text: "Change the company phone for Mapo Studio to 02-5555-9000" },
@@ -30,11 +31,12 @@ export const GUIDE_GROUPS: GuideGroup[] = [
   {
     id: "cargo",
     title: "Cargo partners",
-    summary: "Search or count partners by name, member number, status, vehicle, or region. You can change the member number, name, phone, vehicle number, vehicle type, fixed location, region, or status. A shared name such as Minho Park returns every match and does not open a confirmation card.",
+    summary: "Search or count partners by name, member number, status, vehicle, or region. You can change the member number, name, phone, vehicle number, vehicle type, fixed location, region, status, or blacklist reason. A shared name such as Minho Park returns every match and does not open a confirmation card.",
     questions: [
       { action: "count_cargo_partners", kind: "read", text: "How many cargo partners are approved?" },
       { action: "search_cargo_partners", kind: "read", text: "Find cargo partners named Minho Park" },
       { action: "change_cargo_partner_status", kind: "write", text: "Approve cargo partner Hana Cho" },
+      { action: "set_cargo_partner_blacklist_reason", kind: "write", text: "Set the blacklist reason for member 4321-500-041 to unpaid settlement" },
       { action: "change_cargo_partner_member_number", kind: "write", text: "Change the member number 4321-400-032 to 4321-400-099" },
       { action: "change_cargo_partner_name", kind: "write", text: "Change the name of member 4321-200-010 to Sora Kim" },
       { action: "change_cargo_partner_phone", kind: "write", text: "Change the phone of member 4321-400-032 to 010-4000-0099" },
@@ -47,11 +49,16 @@ export const GUIDE_GROUPS: GuideGroup[] = [
   {
     id: "campaigns",
     title: "Campaigns",
-    summary: "Count or list ads by status, company, recruitment, or coverage. Creating, pausing, stopping, or changing recruitment waits for Confirm. Statuses: under review, preparing, recruiting, in progress, paused, ended, rejected.",
+    summary: "Count or list ads by status, company, recruitment, or coverage. Creating a campaign, or changing its name, company, period, contact, phone, status, or recruitment, waits for Confirm. Statuses: under review, preparing, recruiting, in progress, paused, ended, rejected.",
     questions: [
       { action: "count_campaigns", kind: "read", text: "How many campaigns are in progress?" },
       { action: "search_campaigns", kind: "read", text: "List campaigns for Han River Media" },
       { action: "create_campaign", kind: "write", text: "Create a national campaign named Winter Dock for Han River Media from 2026-12-01 to 2027-01-15, recruitment active, contact Nari Seo, phone 010-0000-1001" },
+      { action: "change_campaign_name", kind: "write", text: "Change the ad name of Weekend Dock to Weekend Harbor" },
+      { action: "change_campaign_company", kind: "write", text: "Move River Archive from Blue Depot to Han River Media" },
+      { action: "change_campaign_period", kind: "write", text: "Change the period of Weekend Dock to 2026-10-01 through 2026-12-31" },
+      { action: "change_campaign_contact_name", kind: "write", text: "Change the contact person for Weekend Dock to Mina Park" },
+      { action: "change_campaign_contact_phone", kind: "write", text: "Change the contact phone for Weekend Dock to 010-0000-1099" },
       { action: "change_campaign_status", kind: "write", text: "Pause the Weekend Dock campaign" },
       { action: "stop_campaign", kind: "write", text: "Stop the Harbor Night campaign" },
       { action: "change_recruitment_status", kind: "write", text: "Set Harbor Lights recruitment to inactive" },

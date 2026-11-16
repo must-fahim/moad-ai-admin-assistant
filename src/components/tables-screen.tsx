@@ -264,7 +264,7 @@ function BlacklistBoard({ advertisers, partners, refreshing, onRefresh }: { adve
                   <td>{row.name}</td>
                   <td>{row.memberNumber}</td>
                   <td>{row.phone}</td>
-                  <td>—</td>
+                  <td>{row.blacklistReason}</td>
                   <td>{row.registeredAt}</td>
                   <td>—</td>
                   <td>—</td>
@@ -276,7 +276,7 @@ function BlacklistBoard({ advertisers, partners, refreshing, onRefresh }: { adve
                 <td>{row.companyName}</td>
                 <td>{row.email}</td>
                 <td>{row.companyPhone}</td>
-                <td>—</td>
+                <td>{row.blacklistReason}</td>
                 <td>{row.registeredAt}</td>
                 <td>—</td>
                 <td>—</td>

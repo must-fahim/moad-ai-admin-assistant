@@ -9,6 +9,7 @@ export type AdvertiserRow = {
   companyPhone: string;
   contactName: string;
   contactPhone: string;
+  blacklistReason: string;
   registeredOn: string;
   registeredAt: string;
 };
@@ -23,6 +24,7 @@ export type PartnerRow = {
   fixedLocation: boolean | null;
   region: string;
   status: string;
+  blacklistReason: string;
   registeredOn: string;
   registeredAt: string;
 };
@@ -224,10 +226,19 @@ const emptyLists = {
   notices: [],
 };
 
+async function selectRows(table: string, columns: string, order: string) {
+  const withReason = columns.includes("blacklist_reason") ? columns : `${columns}, blacklist_reason`;
+  const first = await db().from(table).select(withReason).order(order, { ascending: false });
+  if (first.error && /blacklist_reason/i.test(first.error.message)) {
+    return db().from(table).select(columns.replace(", blacklist_reason", "")).order(order, { ascending: false });
+  }
+  return first;
+}
+
 export async function loadClientLists(): Promise<ClientLists> {
   const [advertisers, partners, applications, campaigns, cargoSettlements, advertiserSettlements, solo, faqs, notices] = await Promise.all([
-    db().from("advertisers").select("id, status, company_name, email, company_phone, contact_name, contact_phone, registered_at").order("registered_at", { ascending: false }),
-    db().from("cargo_partners").select("id, member_number, name, phone, vehicle_number, vehicle_type, fixed_operating_location, region_label, status, registered_at").order("registered_at", { ascending: false }),
+    selectRows("advertisers", "id, status, company_name, email, company_phone, contact_name, contact_phone, registered_at", "registered_at"),
+    selectRows("cargo_partners", "id, member_number, name, phone, vehicle_number, vehicle_type, fixed_operating_location, region_label, status, registered_at", "registered_at"),
     db().from("campaign_applications").select("id, status, region_label, applied_at, campaign_id, cargo_partners(member_number, name, phone, vehicle_number, vehicle_type, fixed_operating_location, region_label), campaigns(name, starts_on, ends_on)").order("applied_at", { ascending: false }),
     db().from("campaigns").select("id, name, status, starts_on, ends_on, contact_name, contact_phone, recruitment_status, applied_at, advertiser_id, advertisers(company_name)").order("applied_at", { ascending: false }),
     db().from("cargo_settlements").select("id, settlement_month, status, operation_count, distance_km, base_amount_krw, additional_amount_krw, tax_amount_krw, final_amount_krw, cargo_partners(member_number, name, phone, vehicle_type)").order("settlement_month", { ascending: false }),
@@ -289,6 +300,7 @@ export async function loadClientLists(): Promise<ClientLists> {
         companyPhone: shown(row.company_phone),
         contactName: shown(row.contact_name),
         contactPhone: shown(row.contact_phone),
+        blacklistReason: shown(row.blacklist_reason),
         registeredOn: when.on,
         registeredAt: when.at,
       };
@@ -305,6 +317,7 @@ export async function loadClientLists(): Promise<ClientLists> {
         fixedLocation: typeof row.fixed_operating_location === "boolean" ? row.fixed_operating_location : null,
         region: shown(row.region_label),
         status: String(row.status ?? ""),
+        blacklistReason: shown(row.blacklist_reason),
         registeredOn: when.on,
         registeredAt: when.at,
       };

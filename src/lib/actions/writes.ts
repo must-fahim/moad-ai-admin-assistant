@@ -369,6 +369,34 @@ export const writeActions: Record<string, ActionHandler> = {
       });
     },
   },
+  set_advertiser_blacklist_reason: {
+    kind: "write",
+    description: "Set or change the blacklist reason for an advertiser who is already blacklisted.",
+    args: "company_name or email or id, blacklist_reason",
+    async run(args, ctx) {
+      const next = text(args.blacklist_reason) || text(args.reason);
+      if (!next) return ask("What should the blacklist reason be?");
+      const found = await findAdvertisers({ ...args, company_name: text(args.company_name) || text(args.company) || text(args.name) }, true);
+      return oneOf(ctx, "set_advertiser_blacklist_reason", args, found, "advertiser", advertiserCard, async (row) => {
+        if (row.status !== "blacklist") return refuse(ctx, "set_advertiser_blacklist_reason", `${row.company_name} is not on the blacklist. Nothing was changed.`, "advertiser", row.id);
+        if (row.blacklist_reason === next) return ask(`${row.company_name} already has that blacklist reason. Nothing needs to change.`);
+        return queue(ctx, {
+          action: "set_advertiser_blacklist_reason",
+          args: { ...args, blacklist_reason: next },
+          targetType: "advertiser",
+          targetId: row.id,
+          title: "Change blacklist reason",
+          summary: `Set the blacklist reason for ${row.company_name} to “${next}” after you confirm.`,
+          before: { blacklist_reason: row.blacklist_reason },
+          lines: detailLines([
+            ["Company", row.company_name],
+            ["Current reason", row.blacklist_reason || "—"],
+            ["New reason", next],
+          ]),
+        });
+      });
+    },
+  },
   change_advertiser_contact_name: {
     kind: "write",
     description: "Change the contact name on one advertiser company.",
@@ -537,6 +565,35 @@ export const writeActions: Record<string, ActionHandler> = {
             ["Member", row.member_number],
             ["Current status", labelize(row.status)],
             ["New status", labelize(check.status)],
+          ]),
+        });
+      });
+    },
+  },
+  set_cargo_partner_blacklist_reason: {
+    kind: "write",
+    description: "Set or change the blacklist reason for a cargo partner who is already blacklisted.",
+    args: "name or member_number or id, blacklist_reason",
+    async run(args, ctx) {
+      const next = text(args.blacklist_reason) || text(args.reason);
+      if (!next) return ask("What should the blacklist reason be?");
+      const found = await findCargo(args);
+      return oneOf(ctx, "set_cargo_partner_blacklist_reason", args, found, "cargo partner", cargoCard, async (row) => {
+        if (row.status !== "blacklist") return refuse(ctx, "set_cargo_partner_blacklist_reason", `${row.name} is not on the blacklist. Nothing was changed.`, "cargo_partner", row.id);
+        if (row.blacklist_reason === next) return ask(`${row.name} already has that blacklist reason. Nothing needs to change.`);
+        return queue(ctx, {
+          action: "set_cargo_partner_blacklist_reason",
+          args: { ...args, blacklist_reason: next },
+          targetType: "cargo_partner",
+          targetId: row.id,
+          title: "Change blacklist reason",
+          summary: `Set the blacklist reason for ${row.name} (${row.member_number}) to “${next}” after you confirm.`,
+          before: { blacklist_reason: row.blacklist_reason },
+          lines: detailLines([
+            ["Partner", row.name],
+            ["Member", row.member_number],
+            ["Current reason", row.blacklist_reason || "—"],
+            ["New reason", next],
           ]),
         });
       });
@@ -856,6 +913,168 @@ export const writeActions: Record<string, ActionHandler> = {
             ["Campaign", row.name],
             ["Current recruitment", labelize(row.recruitment_status)],
             ["New recruitment", labelize(check.status)],
+          ]),
+        });
+      });
+    },
+  },
+  change_campaign_name: {
+    kind: "write",
+    description: "Change a campaign's ad name. name is the current ad name. new_name is the replacement. Add company_name when more than one campaign shares the name.",
+    args: "current name or id, company_name, new_name",
+    async run(args, ctx) {
+      const next = text(args.new_name) || text(args.new_campaign_name);
+      if (!next) return ask("What should the new ad name be?");
+      const currentName = text(args.current_name) || text(args.campaign_name) || (text(args.name) !== next ? text(args.name) : "");
+      const found = await findCampaigns({ id: args.id, campaign_id: args.campaign_id, name: currentName, company_name: text(args.company_name) || text(args.company) });
+      return oneOf(ctx, "change_campaign_name", args, found, "campaign", campaignCard, async (row) => {
+        if (row.name === next) return ask(`${row.name} already uses that ad name. Nothing needs to change.`);
+        return queue(ctx, {
+          action: "change_campaign_name",
+          args: { ...args, new_name: next },
+          targetType: "campaign",
+          targetId: row.id,
+          title: "Change ad name",
+          summary: `Change the ad name from “${row.name}” to “${next}” after you confirm.`,
+          before: { name: row.name },
+          lines: detailLines([
+            ["Company", row.advertisers?.company_name],
+            ["Current ad name", row.name],
+            ["New ad name", next],
+          ]),
+        });
+      });
+    },
+  },
+  change_campaign_company: {
+    kind: "write",
+    description: "Move one campaign to a different advertiser company. name is the ad name. company_name is the current company. new_company_name is the company that should own the campaign.",
+    args: "name or id, current company_name, new_company_name",
+    async run(args, ctx) {
+      const nextCompany = text(args.new_company_name);
+      if (!nextCompany) return ask("Which company should own this campaign?");
+      const currentCompany = text(args.current_company_name) || (text(args.company_name) !== nextCompany ? text(args.company_name) : "");
+      const campaignPinned = Boolean(text(args.campaign_id));
+      const found = await findCampaigns({
+        id: campaignPinned ? "" : args.id,
+        campaign_id: args.campaign_id,
+        name: text(args.name) || text(args.campaign_name),
+        company_name: currentCompany,
+      });
+      return oneOf(ctx, "change_campaign_company", args, found, "campaign", campaignCard, async (row) => {
+        const advertisers = await findAdvertisers(campaignPinned ? { id: args.id } : { company_name: nextCompany }, false);
+        if (advertisers == null || advertisers.length === 0) return refuse(ctx, "change_campaign_company", `No advertiser named ${nextCompany} was found. Nothing was changed.`, "campaign", row.id);
+        if (advertisers.length > 1) return ambiguous("change_campaign_company", { ...args, new_company_name: nextCompany, campaign_id: row.id }, advertisers, "advertiser", advertiserCard);
+        const advertiser = advertisers[0];
+        if (row.advertiser_id === advertiser.id) return ask(`${row.name} is already owned by ${advertiser.company_name}. Nothing needs to change.`);
+        return queue(ctx, {
+          action: "change_campaign_company",
+          args: { ...args, new_company_name: nextCompany, advertiser_id: advertiser.id },
+          targetType: "campaign",
+          targetId: row.id,
+          title: "Change campaign company",
+          summary: `Move ${row.name} from ${row.advertisers?.company_name} to ${advertiser.company_name} after you confirm.`,
+          before: { advertiser_id: row.advertiser_id },
+          lines: detailLines([
+            ["Ad name", row.name],
+            ["Current company", row.advertisers?.company_name],
+            ["New company", advertiser.company_name],
+          ]),
+        });
+      });
+    },
+  },
+  change_campaign_period: {
+    kind: "write",
+    description: "Change a campaign's start and end dates. Dates use YYYY-MM-DD.",
+    args: "name or id, company_name, starts_on, ends_on",
+    async run(args, ctx) {
+      const starts = day(args.starts_on);
+      const ends = day(args.ends_on);
+      if (!starts || !ends) return ask("What should the new start and end dates be? Use YYYY-MM-DD.");
+      if (ends < starts) return ask("The end date has to be on or after the start date.");
+      const found = await findCampaigns(args);
+      return oneOf(ctx, "change_campaign_period", args, found, "campaign", campaignCard, async (row) => {
+        if (row.starts_on === starts && row.ends_on === ends) return ask(`${row.name} already runs from ${starts} to ${ends}. Nothing needs to change.`);
+        return queue(ctx, {
+          action: "change_campaign_period",
+          args: { ...args, starts_on: starts, ends_on: ends },
+          targetType: "campaign",
+          targetId: row.id,
+          title: "Change ad period",
+          summary: `Change the period for ${row.name} from ${row.starts_on} – ${row.ends_on} to ${starts} – ${ends} after you confirm.`,
+          before: { starts_on: row.starts_on, ends_on: row.ends_on },
+          lines: detailLines([
+            ["Ad name", row.name],
+            ["Company", row.advertisers?.company_name],
+            ["Current period", `${row.starts_on} – ${row.ends_on}`],
+            ["New period", `${starts} – ${ends}`],
+          ]),
+        });
+      });
+    },
+  },
+  change_campaign_contact_name: {
+    kind: "write",
+    description: "Change the contact person on one campaign.",
+    args: "name or id, company_name, contact_name",
+    async run(args, ctx) {
+      const next = text(args.new_contact_name) || text(args.contact_name);
+      if (!next) return ask("Who should the new contact person be?");
+      const found = await findCampaigns({
+        id: args.id,
+        campaign_id: args.campaign_id,
+        name: text(args.campaign_name) || text(args.current_name) || (text(args.name) !== next ? text(args.name) : ""),
+        company_name: text(args.company_name) || text(args.company),
+      });
+      return oneOf(ctx, "change_campaign_contact_name", args, found, "campaign", campaignCard, async (row) => {
+        if (row.contact_name === next) return ask(`${row.name} already lists ${next} as the contact. Nothing needs to change.`);
+        return queue(ctx, {
+          action: "change_campaign_contact_name",
+          args: { ...args, contact_name: next },
+          targetType: "campaign",
+          targetId: row.id,
+          title: "Change campaign contact",
+          summary: `Change the contact for ${row.name} from “${row.contact_name || "—"}” to “${next}” after you confirm.`,
+          before: { contact_name: row.contact_name },
+          lines: detailLines([
+            ["Ad name", row.name],
+            ["Company", row.advertisers?.company_name],
+            ["Current contact", row.contact_name || "—"],
+            ["New contact", next],
+          ]),
+        });
+      });
+    },
+  },
+  change_campaign_contact_phone: {
+    kind: "write",
+    description: "Change the contact phone number on one campaign.",
+    args: "name or id, company_name, contact_phone",
+    async run(args, ctx) {
+      const next = text(args.new_contact_phone) || text(args.contact_phone) || text(args.phone);
+      if (!next) return ask("What should the new contact phone number be?");
+      const found = await findCampaigns({
+        id: args.id,
+        campaign_id: args.campaign_id,
+        name: text(args.campaign_name) || text(args.current_name) || (text(args.name) !== next ? text(args.name) : ""),
+        company_name: text(args.company_name) || text(args.company),
+      });
+      return oneOf(ctx, "change_campaign_contact_phone", args, found, "campaign", campaignCard, async (row) => {
+        if (row.contact_phone === next) return ask(`${row.name} already uses contact phone ${next}. Nothing needs to change.`);
+        return queue(ctx, {
+          action: "change_campaign_contact_phone",
+          args: { ...args, contact_phone: next },
+          targetType: "campaign",
+          targetId: row.id,
+          title: "Change campaign contact phone",
+          summary: `Change the contact phone for ${row.name} from ${row.contact_phone || "—"} to ${next} after you confirm.`,
+          before: { contact_phone: row.contact_phone },
+          lines: detailLines([
+            ["Ad name", row.name],
+            ["Company", row.advertisers?.company_name],
+            ["Current phone", row.contact_phone || "—"],
+            ["New phone", next],
           ]),
         });
       });
@@ -1281,6 +1500,14 @@ async function updateStatus(table: string, pending: PendingAction, nextStatus: s
   };
 }
 
+async function updateBlacklistReason(table: string, pending: PendingAction, next: string) {
+  const current = await requireCurrent(table, pending.target_id, pending.before_data, ["blacklist_reason"]);
+  if (current.status !== "blacklist") throw new ActionRefusal(`${labelOf(current)} is not on the blacklist. Nothing was changed.`);
+  if (!next) throw new ActionRefusal("A blacklist reason is required. Nothing was changed.");
+  unwrap(await db().from(table).update({ blacklist_reason: next }).eq("id", current.id));
+  return { summary: `The blacklist reason for ${labelOf(current)} is now ${next}.`, before: { blacklist_reason: current.blacklist_reason }, after: { blacklist_reason: next, id: current.id } };
+}
+
 function labelOf(row: Row) {
   return row.company_name || row.name || row.member_number || row.title || row.question || "The record";
 }
@@ -1304,6 +1531,8 @@ export async function commitAction(pending: PendingAction) {
   switch (pending.action_name) {
     case "change_advertiser_status":
       return updateStatus("advertisers", pending, canonical(args.status));
+    case "set_advertiser_blacklist_reason":
+      return updateBlacklistReason("advertisers", pending, text(args.blacklist_reason));
     case "change_advertiser_contact_name": {
       const current = await requireCurrent("advertisers", pending.target_id, pending.before_data, ["contact_name"]);
       const next = text(args.contact_name);
@@ -1343,6 +1572,8 @@ export async function commitAction(pending: PendingAction) {
     }
     case "change_cargo_partner_status":
       return updateStatus("cargo_partners", pending, canonical(args.status));
+    case "set_cargo_partner_blacklist_reason":
+      return updateBlacklistReason("cargo_partners", pending, text(args.blacklist_reason));
     case "change_cargo_partner_name": {
       const current = await requireCurrent("cargo_partners", pending.target_id, pending.before_data, ["name"]);
       const newName = text(args.new_name);
@@ -1431,6 +1662,43 @@ export async function commitAction(pending: PendingAction) {
       }
       unwrap(await db().from("campaigns").update({ recruitment_status: recruitment }).eq("id", current.id));
       return { summary: `Recruitment for ${current.name} is now ${labelize(recruitment)}.`, before: { recruitment_status: current.recruitment_status }, after: { recruitment_status: recruitment, id: current.id } };
+    }
+    case "change_campaign_name": {
+      const current = await requireCurrent("campaigns", pending.target_id, pending.before_data, ["name"]);
+      const next = text(args.new_name);
+      if (!next) throw new ActionRefusal("An ad name is required. Nothing was changed.");
+      unwrap(await db().from("campaigns").update({ name: next }).eq("id", current.id));
+      return { summary: `The ad name is now ${next}.`, before: { name: current.name }, after: { name: next, id: current.id } };
+    }
+    case "change_campaign_company": {
+      const current = await requireCurrent("campaigns", pending.target_id, pending.before_data, ["advertiser_id"]);
+      const advertiserId = text(args.advertiser_id);
+      const advertiser = await loadOne("advertisers", advertiserId);
+      if (!advertiser) throw new ActionRefusal("That advertiser is no longer there. Nothing was changed.");
+      unwrap(await db().from("campaigns").update({ advertiser_id: advertiser.id }).eq("id", current.id));
+      return { summary: `${current.name} now belongs to ${advertiser.company_name}.`, before: { advertiser_id: current.advertiser_id }, after: { advertiser_id: advertiser.id, id: current.id } };
+    }
+    case "change_campaign_period": {
+      const current = await requireCurrent("campaigns", pending.target_id, pending.before_data, ["starts_on", "ends_on"]);
+      const starts = day(args.starts_on);
+      const ends = day(args.ends_on);
+      if (!starts || !ends || ends < starts) throw new ActionRefusal("A valid start and end date are required. Nothing was changed.");
+      unwrap(await db().from("campaigns").update({ starts_on: starts, ends_on: ends }).eq("id", current.id));
+      return { summary: `The period for ${current.name} is now ${starts} – ${ends}.`, before: { starts_on: current.starts_on, ends_on: current.ends_on }, after: { starts_on: starts, ends_on: ends, id: current.id } };
+    }
+    case "change_campaign_contact_name": {
+      const current = await requireCurrent("campaigns", pending.target_id, pending.before_data, ["contact_name"]);
+      const next = text(args.contact_name);
+      if (!next) throw new ActionRefusal("A contact name is required. Nothing was changed.");
+      unwrap(await db().from("campaigns").update({ contact_name: next }).eq("id", current.id));
+      return { summary: `The contact for ${current.name} is now ${next}.`, before: { contact_name: current.contact_name }, after: { contact_name: next, id: current.id } };
+    }
+    case "change_campaign_contact_phone": {
+      const current = await requireCurrent("campaigns", pending.target_id, pending.before_data, ["contact_phone"]);
+      const next = text(args.contact_phone);
+      if (!next) throw new ActionRefusal("A contact phone number is required. Nothing was changed.");
+      unwrap(await db().from("campaigns").update({ contact_phone: next }).eq("id", current.id));
+      return { summary: `The contact phone for ${current.name} is now ${next}.`, before: { contact_phone: current.contact_phone }, after: { contact_phone: next, id: current.id } };
     }
     case "change_application_status":
       return updateStatus("campaign_applications", pending, canonical(args.status));
