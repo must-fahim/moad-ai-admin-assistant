@@ -60,11 +60,18 @@ export const GUIDE_GROUPS: GuideGroup[] = [
   {
     id: "applications",
     title: "Campaign applications",
-    summary: "These are cargo partners applied to a campaign. Statuses: under review, preparing, operational, in progress, ended.",
+    summary: "These are cargo partners applied to a campaign. Member number, name, phone, vehicle number, vehicle type, and fixed operation area are the partner's values. Region and status belong to the application. Statuses: under review, preparing, operational, in progress, ended.",
     questions: [
       { action: "count_applications", kind: "read", text: "How many applications are in progress?" },
       { action: "search_applications", kind: "read", text: "List applications for the Harbor Night campaign" },
       { action: "change_application_status", kind: "write", text: "Set Sora Kim's Harbor Night application to ended" },
+      { action: "change_cargo_partner_member_number", kind: "write", text: "Change the member number on Aera Moon's Harbor Lights application to 4321-400-130" },
+      { action: "change_cargo_partner_name", kind: "write", text: "Change the member name on Aera Moon's Harbor Lights application to Ara Moon" },
+      { action: "change_cargo_partner_phone", kind: "write", text: "Change the phone number on Aera Moon's Harbor Lights application to 010-4000-0130" },
+      { action: "change_cargo_partner_vehicle_number", kind: "write", text: "Change the vehicle number on Bora Lee's Harbor Lights application to 부산31가1031" },
+      { action: "change_cargo_partner_vehicle_type", kind: "write", text: "Change the vehicle type on Bora Lee's Harbor Lights application to Top / Small" },
+      { action: "change_cargo_partner_fixed_location", kind: "write", text: "Set the fixed operation area on Aera Moon's Harbor Lights application to yes" },
+      { action: "change_application_region", kind: "write", text: "Change the region on Aera Moon's Harbor Lights application to Seoul > Gangnam-gu" },
     ],
   },
   {

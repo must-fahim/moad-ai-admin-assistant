@@ -32,7 +32,7 @@ export function GuideScreen() {
       <div className="guide-body">
         <div className="guide-intro">
           <p>
-            {GUIDE_QUESTION_COUNT} example questions, one for each approved function.
+            {GUIDE_QUESTION_COUNT} example questions for the approved functions.
             A read runs immediately. A change identifies one record, then waits until you confirm.
           </p>
           <label className="guide-search">

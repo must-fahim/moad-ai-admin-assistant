@@ -891,6 +891,35 @@ export const writeActions: Record<string, ActionHandler> = {
       });
     },
   },
+  change_application_region: {
+    kind: "write",
+    description: "Change the region on one campaign application, such as Seoul > Gangnam-gu. This is the application's region, not the cargo partner's region.",
+    args: "campaign_name plus partner_name or member_number or id, region",
+    async run(args, ctx) {
+      const next = text(args.new_region) || text(args.region) || text(args.region_label);
+      if (!next) return ask("What should the new application region be?");
+      const found = await findApplications({ ...args, region: "", region_label: "", new_region: "" });
+      return oneOf(ctx, "change_application_region", args, found, "application", applicationCard, async (row) => {
+        if (row.region_label === next) return ask(`${row.cargo_partners?.name}'s application on ${row.campaigns?.name} is already in ${next}. Nothing needs to change.`);
+        return queue(ctx, {
+          action: "change_application_region",
+          args: { ...args, region: next },
+          targetType: "campaign_application",
+          targetId: row.id,
+          title: "Change application region",
+          summary: `Change the region for ${row.cargo_partners?.name}'s application on ${row.campaigns?.name} from ${row.region_label || "—"} to ${next} after you confirm.`,
+          before: { region_label: row.region_label },
+          lines: detailLines([
+            ["Partner", row.cargo_partners?.name],
+            ["Member", row.cargo_partners?.member_number],
+            ["Campaign", row.campaigns?.name],
+            ["Current region", row.region_label || "—"],
+            ["New region", next],
+          ]),
+        });
+      });
+    },
+  },
   confirm_cargo_settlement: {
     kind: "write",
     description: "Confirm an operating-partner settlement that is still before settlement.",
@@ -1405,6 +1434,13 @@ export async function commitAction(pending: PendingAction) {
     }
     case "change_application_status":
       return updateStatus("campaign_applications", pending, canonical(args.status));
+    case "change_application_region": {
+      const current = await requireCurrent("campaign_applications", pending.target_id, pending.before_data, ["region_label"]);
+      const next = text(args.region);
+      if (!next) throw new ActionRefusal("A region is required. Nothing was changed.");
+      unwrap(await db().from("campaign_applications").update({ region_label: next }).eq("id", current.id));
+      return { summary: `The application region is now ${next}.`, before: { region_label: current.region_label }, after: { region_label: next, id: current.id } };
+    }
     case "confirm_cargo_settlement": {
       const current = await requireCurrent("cargo_settlements", pending.target_id, pending.before_data, ["status"]);
       if (current.status !== "before_settlement") throw new ActionRefusal("This settlement is no longer waiting. Nothing was changed.");
