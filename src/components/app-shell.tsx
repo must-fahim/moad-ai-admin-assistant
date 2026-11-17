@@ -1,11 +1,13 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { DatabaseOutlined, LogoutOutlined, MenuOutlined, MessageOutlined, PlusOutlined, ReadOutlined, TeamOutlined } from "@ant-design/icons";
-import { AdminManager } from "@/components/admin-manager";
 import type { AdminProfile } from "@/lib/chat-types";
+
+const AdminManager = dynamic(() => import("@/components/admin-manager").then((mod) => mod.AdminManager), { ssr: false });
 
 const PROMPTS = [
   "How many campaigns are in progress?",
@@ -57,7 +59,9 @@ export function AppShell({
   const router = useRouter();
   const pathname = usePathname();
   const [adminsOpen, setAdminsOpen] = useState(false);
+  const [adminsMounted, setAdminsMounted] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const actionsRef = useRef<ShellActions>({});
   const setActions = useCallback((actions: ShellActions) => {
     actionsRef.current = actions;
@@ -89,7 +93,7 @@ export function AppShell({
   }
 
   return (
-    <div className="shell">
+    <div className={`shell${sidebarOpen ? "" : " sidebar-closed"}`}>
       {navOpen ? <button className="nav-scrim" type="button" aria-label="Close menu" onClick={() => setNavOpen(false)} /> : null}
       <aside className={`sidebar${navOpen ? " open" : ""}`}>
         <div className="brand">
@@ -127,19 +131,28 @@ export function AppShell({
             </div>
           </div>
           <div className="foot-actions">
-            <button type="button" onClick={() => { setNavOpen(false); setAdminsOpen(true); }}><TeamOutlined /> Admins</button>
+            <button type="button" onClick={() => { setNavOpen(false); setAdminsMounted(true); setAdminsOpen(true); }}><TeamOutlined /> Admins</button>
             <button type="button" onClick={logout}><LogoutOutlined /> Log out</button>
           </div>
         </div>
       </aside>
       <div className="shell-main">
+        <button
+          className="sidebar-toggle"
+          type="button"
+          aria-label={sidebarOpen ? "Close sidebar" : "Open sidebar"}
+          aria-expanded={sidebarOpen}
+          onClick={() => setSidebarOpen((open) => !open)}
+        >
+          <MenuOutlined />
+        </button>
         <div className="mobile-bar">
           <button type="button" onClick={() => setNavOpen(true)} aria-label="Open menu"><MenuOutlined /> Menu</button>
           <strong>MOAD</strong>
         </div>
         <ShellActionsContext.Provider value={setActions}>{children}</ShellActionsContext.Provider>
       </div>
-      <AdminManager open={adminsOpen} onClose={() => setAdminsOpen(false)} currentId={admin.id} />
+      {adminsMounted ? <AdminManager open={adminsOpen} onClose={() => setAdminsOpen(false)} currentId={admin.id} /> : null}
     </div>
   );
 }

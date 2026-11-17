@@ -23,7 +23,12 @@ export function getServiceClient(): SupabaseClient {
 }
 
 export function friendlyDbError(error: { message: string }): Error {
-  if (/does not exist|schema cache/i.test(error.message)) {
+  if (/column .+ does not exist|Could not find the .+ column|schema cache/i.test(error.message)) {
+    const wrapped = new Error("A required database column is missing. Run the latest supabase/schema.sql in the SQL editor (it adds blacklist_reason and other columns).");
+    (wrapped as Error & { status?: number }).status = 503;
+    return wrapped;
+  }
+  if (/relation .+ does not exist|Could not find the table/i.test(error.message)) {
     const wrapped = new Error("The Supabase tables are missing. Run supabase/schema.sql in the SQL editor, then npm run seed.");
     (wrapped as Error & { status?: number }).status = 503;
     return wrapped;
