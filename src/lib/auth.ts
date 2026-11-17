@@ -6,6 +6,14 @@ import type { AdminProfile } from "@/lib/chat-types";
 
 export const SESSION_COOKIE = "moad_session";
 
+const ADMIN_CACHE_MS = 15_000;
+const adminCache = new Map<string, { admin: AdminProfile; expires: number }>();
+
+export function clearAdminCache(adminId?: string) {
+  if (adminId) adminCache.delete(adminId);
+  else adminCache.clear();
+}
+
 function secret() {
   const value = process.env.AUTH_SECRET;
   if (!value) {
@@ -58,6 +66,9 @@ export async function getCurrentAdmin(): Promise<AdminProfile | null> {
   }
   if (!adminId) return null;
 
+  const cached = adminCache.get(adminId);
+  if (cached && cached.expires > Date.now()) return cached.admin;
+
   const { data, error } = await getServiceClient()
     .from("admin_users")
     .select("id, name, phone, country, username, is_active, is_primary")
@@ -66,11 +77,14 @@ export async function getCurrentAdmin(): Promise<AdminProfile | null> {
 
   if (error) throw friendlyDbError(error);
   if (!data || !data.is_active) {
+    adminCache.delete(adminId);
     jar.delete(SESSION_COOKIE);
     return null;
   }
 
-  return data as AdminProfile;
+  const admin = data as AdminProfile;
+  adminCache.set(adminId, { admin, expires: Date.now() + ADMIN_CACHE_MS });
+  return admin;
 }
 
 export async function requireAdmin(): Promise<AdminProfile> {

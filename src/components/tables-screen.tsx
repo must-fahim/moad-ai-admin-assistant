@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { PushpinOutlined } from "@ant-design/icons";
 import { APP_PAGES } from "@/lib/catalog";
 import type { AdvertiserRow, AdvertiserSettlementRow, ApplicationRow, CampaignRow, CargoSettlementRow, ClientLists, FaqRow, NoticeRow, PartnerCampaignRow, PartnerRow, SoloRow } from "@/lib/client-lists";
+import { ActivityButton } from "@/components/activity-button";
 import { SkeletonTable } from "@/components/loader";
 import { labelize } from "@/lib/labels";
 
@@ -29,6 +30,9 @@ export function TablesScreen({ lists, origin }: { lists: ClientLists; origin: st
           <div className="stage-title">
             <strong>Records</strong>
             <span>Read-only lists from the admin screens. Refresh any list for the latest rows.</span>
+          </div>
+          <div className="stage-actions">
+            <ActivityButton />
           </div>
         </header>
         <div className="stage-scroll">

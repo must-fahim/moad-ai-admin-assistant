@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { ActivityButton } from "@/components/activity-button";
 import { GUIDE_GROUPS, GUIDE_QUESTION_COUNT, type GuideGroup } from "@/lib/guide";
 
 export function GuideScreen() {
@@ -26,6 +27,9 @@ export function GuideScreen() {
           <div className="stage-title">
             <strong>Question guide</strong>
             <span>{GUIDE_QUESTION_COUNT} approved questions. Reads run now. Changes wait for confirmation.</span>
+          </div>
+          <div className="stage-actions">
+            <ActivityButton />
           </div>
         </header>
         <div className="stage-scroll">

@@ -4,8 +4,8 @@ import { requireAdmin } from "@/lib/auth";
 import type { ChatPayload } from "@/lib/chat-types";
 import { apiError } from "@/lib/http";
 import { text } from "@/lib/labels";
-import { addMessage, closeOpenConfirmations, listMessages, recentHistory } from "@/lib/messages";
-import { interpret, narrate } from "@/lib/narrate";
+import { addMessage, closeOpenConfirmations, openChat, recentHistory } from "@/lib/messages";
+import { interpret } from "@/lib/narrate";
 import { db } from "@/lib/db";
 
 function payloadFrom(outcome: ActionOutcome): ChatPayload {
@@ -23,8 +23,7 @@ function payloadFrom(outcome: ActionOutcome): ChatPayload {
 export async function GET() {
   try {
     const admin = await requireAdmin();
-    await closeOpenConfirmations(admin.id, true);
-    return Response.json({ messages: await listMessages(admin.id) });
+    return Response.json({ messages: await openChat(admin.id) });
   } catch (error) {
     return apiError(error);
   }
@@ -48,8 +47,10 @@ export async function POST(request: Request) {
     const message = text(body.message);
     if (!message) return Response.json({ error: "Write a message first." }, { status: 400 });
 
-    const closedMessages = await closeOpenConfirmations(admin.id);
-    const history = await recentHistory(admin.id);
+    const [closedMessages, history] = await Promise.all([
+      closeOpenConfirmations(admin.id),
+      recentHistory(admin.id),
+    ]);
     const userMessage = await addMessage(admin.id, "user", message);
     const resume = body.resume as { action?: string; args?: Record<string, unknown> } | undefined;
 
@@ -71,8 +72,7 @@ export async function POST(request: Request) {
       };
     }
 
-    const reply = outcome.kind === "clarification" ? outcome.summary : await narrate(outcome);
-    const assistantMessage = await addMessage(admin.id, "assistant", reply || outcome.summary, payloadFrom(outcome));
+    const assistantMessage = await addMessage(admin.id, "assistant", outcome.summary, payloadFrom(outcome));
     return Response.json({ userMessage, assistantMessage, closedMessages });
   } catch (error) {
     return apiError(error);

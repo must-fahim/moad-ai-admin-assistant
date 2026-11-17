@@ -230,9 +230,9 @@ const emptyLists = {
 
 async function selectRows(table: string, columns: string, order: string) {
   const withReason = columns.includes("blacklist_reason") ? columns : `${columns}, blacklist_reason`;
-  const first = await db().from(table).select(withReason).order(order, { ascending: false });
+  const first = await db().from(table).select(withReason).order(order, { ascending: false }).limit(300);
   if (first.error && /blacklist_reason/i.test(first.error.message)) {
-    return db().from(table).select(columns.replace(", blacklist_reason", "")).order(order, { ascending: false });
+    return db().from(table).select(columns.replace(", blacklist_reason", "")).order(order, { ascending: false }).limit(300);
   }
   return first;
 }
@@ -241,13 +241,13 @@ export async function loadClientLists(): Promise<ClientLists> {
   const [advertisers, partners, applications, campaigns, cargoSettlements, advertiserSettlements, solo, faqs, notices] = await Promise.all([
     selectRows("advertisers", "id, status, company_name, email, company_phone, contact_name, contact_phone, registered_at", "registered_at"),
     selectRows("cargo_partners", "id, member_number, name, phone, vehicle_number, vehicle_type, fixed_operating_location, region_label, status, registered_at", "registered_at"),
-    db().from("campaign_applications").select("id, status, region_label, applied_at, campaign_id, cargo_partners(member_number, name, phone, vehicle_number, vehicle_type, fixed_operating_location, region_label), campaigns(name, starts_on, ends_on)").order("applied_at", { ascending: false }),
-    db().from("campaigns").select("id, name, status, starts_on, ends_on, contact_name, contact_phone, recruitment_status, applied_at, advertiser_id, advertisers(company_name)").order("applied_at", { ascending: false }),
-    db().from("cargo_settlements").select("id, settlement_month, status, operation_count, distance_km, base_amount_krw, additional_amount_krw, tax_amount_krw, final_amount_krw, cargo_partners(member_number, name, phone, vehicle_type)").order("settlement_month", { ascending: false }),
-    db().from("advertiser_settlements").select("id, campaign_id, settlement_month, status, coverage_type, discount_rate, final_amount_krw, campaigns(name, starts_on, ends_on, contact_name, contact_phone, applied_at, advertisers(company_name))").order("settlement_month", { ascending: false }),
-    db().from("solo_pay_accounts").select("id, linked, balance_krw, advertisers(id, company_name, email, company_phone, contact_name, contact_phone, registered_at)").order("balance_krw", { ascending: false }),
-    db().from("faqs").select("id, category, question, pinned, exposed, author_name, created_at").order("sort_order", { ascending: true }),
-    db().from("notices").select("id, audience, title, pinned, author_name, created_at").order("sort_order", { ascending: true }),
+    db().from("campaign_applications").select("id, status, region_label, applied_at, campaign_id, cargo_partners(member_number, name, phone, vehicle_number, vehicle_type, fixed_operating_location, region_label), campaigns(name, starts_on, ends_on)").order("applied_at", { ascending: false }).limit(300),
+    db().from("campaigns").select("id, name, status, starts_on, ends_on, contact_name, contact_phone, recruitment_status, applied_at, advertiser_id, advertisers(company_name)").order("applied_at", { ascending: false }).limit(300),
+    db().from("cargo_settlements").select("id, settlement_month, status, operation_count, distance_km, base_amount_krw, additional_amount_krw, tax_amount_krw, final_amount_krw, cargo_partners(member_number, name, phone, vehicle_type)").order("settlement_month", { ascending: false }).limit(300),
+    db().from("advertiser_settlements").select("id, campaign_id, settlement_month, status, coverage_type, discount_rate, final_amount_krw, campaigns(name, starts_on, ends_on, contact_name, contact_phone, applied_at, advertisers(company_name))").order("settlement_month", { ascending: false }).limit(300),
+    db().from("solo_pay_accounts").select("id, linked, balance_krw, advertisers(id, company_name, email, company_phone, contact_name, contact_phone, registered_at)").order("balance_krw", { ascending: false }).limit(300),
+    db().from("faqs").select("id, category, question, pinned, exposed, author_name, created_at").order("sort_order", { ascending: true }).limit(300),
+    db().from("notices").select("id, audience, title, pinned, author_name, created_at").order("sort_order", { ascending: true }).limit(300),
   ]);
 
   const failed = [advertisers.error, partners.error, applications.error, campaigns.error, cargoSettlements.error, advertiserSettlements.error, solo.error, faqs.error, notices.error].find(Boolean);

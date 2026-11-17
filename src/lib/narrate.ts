@@ -1,31 +1,61 @@
 import { completeJson } from "@/lib/ai";
 import { listActions } from "@/lib/actions/engine";
 import { text } from "@/lib/labels";
-import type { ActionOutcome } from "@/lib/actions/types";
 
 const CATALOG = listActions()
-  .map((action) => `- ${action.name} (${action.kind}): ${action.description} Args: ${action.args}.`)
+  .map((action) => `${action.name} (${action.kind}): ${action.description} Args: ${action.args}.`)
   .join("\n");
 
 const UNCLEAR = "I can look up campaigns, advertisers, cargo partners, settlements, Solo Pay, FAQs, and notices. Ask for a count or a name, or tell me the one record you want to change.";
 
-export async function interpret(message: string, history: { role: "user" | "assistant"; content: string }[]) {
-  try {
+type Turn = { role: "user" | "assistant"; content: string };
+
+function stockClarification(value: string) {
+  return (
+    value === UNCLEAR ||
+    /ask for a count or a name/i.test(value) ||
+    /could not complete that/i.test(value) ||
+    /not sure what you need/i.test(value) ||
+    /provide more details/i.test(value)
+  );
+}
+
+function refersToPrevious(message: string) {
+  return /\b(that|those|this|same|again|it|them|one|previous|above)\b/i.test(message);
+}
+
+function modelHistory(history: Turn[]) {
+  const kept: Turn[] = [];
+  for (let index = 0; index < history.length; index += 1) {
+    const turn = history[index];
+    const next = history[index + 1];
+    if (turn.role === "user" && next?.role === "assistant" && stockClarification(next.content)) {
+      index += 1;
+      continue;
+    }
+    if (turn.role === "assistant" && stockClarification(turn.content)) continue;
+    kept.push(turn);
+  }
+  return kept.slice(-4);
+}
+
+async function chooseAction(message: string, history: Turn[]) {
   const result = await completeJson([
     {
       role: "system",
       content: [
-        "You choose one approved MOAD admin action. You never write SQL and you never claim a record was changed.",
-        "Return JSON: {\"action\":\"action_name\",\"args\":{}} or {\"action\":null,\"clarification\":\"what you need\"}.",
-        "Use null when the request is a greeting, thanks, small talk, or missing the record or the new value.",
-        "For those, put a short helpful reply in clarification. Do not invent an action.",
-        "Status values use snake case: pending_approval, approved, rejected, blacklist, under_review, preparing, recruiting, operational, in_progress, paused, ended, before_settlement, settlement_confirmed, before_payment, payment_confirmed.",
-        "Stop a campaign with stop_campaign. A count or filter is a read and does not need confirmation.",
-        "Approved actions:",
+        "Choose one approved MOAD admin action. Never write SQL.",
+        "Return JSON only: {\"action\":\"action_name\",\"args\":{}} or {\"action\":null,\"clarification\":\"short helpful reply\"}.",
+        "Judge only the latest user message. Use null for greetings, small talk, or when the record or new value is missing.",
+        "Driving partner, operating partner, and cargo partner are the same. Advertiser is a company.",
+        "Remove from blacklist or unblock means change that person's status to approved. Put them on blacklist means status blacklist.",
+        "Statuses: pending_approval, approved, rejected, blacklist, under_review, preparing, recruiting, operational, in_progress, paused, ended, before_settlement, settlement_confirmed, before_payment, payment_confirmed.",
+        "Stop a campaign with stop_campaign.",
+        "Actions:",
         CATALOG,
       ].join("\n"),
     },
-    ...history.slice(-6),
+    ...history,
     { role: "user", content: message },
   ]);
 
@@ -38,41 +68,24 @@ export async function interpret(message: string, history: { role: "user" | "assi
     return { action: null as string | null, args, clarification: text(result.clarification) || UNCLEAR };
   }
   return { action, args, clarification: text(result.clarification) };
-  } catch {
+}
+
+async function attempt(message: string, history: Turn[]) {
+  try {
+    return await chooseAction(message, history);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : "";
+    if (/rate limit/i.test(detail)) {
+      return { action: null as string | null, args: {}, clarification: "The assistant is busy. Send that question again in a few seconds." };
+    }
     return { action: null as string | null, args: {}, clarification: UNCLEAR };
   }
 }
 
-export async function narrate(outcome: ActionOutcome): Promise<string> {
-  try {
-    const result = await completeJson([
-      {
-        role: "system",
-        content: [
-          "Turn the server result into one or two sentences for an administrator.",
-          "Use only the facts in the result. Do not invent counts, names, or statuses.",
-          "If kind is confirmation, ask them to confirm and do not say the change is done.",
-          "If kind is refused or matches, say that nothing was changed.",
-          "Return JSON: {\"reply\":\"...\"}.",
-        ].join(" "),
-      },
-      {
-        role: "user",
-        content: JSON.stringify({
-          kind: outcome.kind,
-          summary: outcome.summary,
-          total: outcome.total ?? null,
-          rows: (outcome.rows ?? []).slice(0, 8),
-        }),
-      },
-    ]);
-    const reply = text(result.reply);
-    if (!reply) return outcome.summary;
-    if (outcome.kind !== "done" && outcome.kind !== "read" && /nothing was changed|confirm|choose/i.test(outcome.summary) && /\b(updated|deleted|created|deducted|stopped)\b/i.test(reply)) {
-      return outcome.summary;
-    }
-    return reply;
-  } catch {
-    return outcome.summary;
-  }
+export async function interpret(message: string, history: Turn[]) {
+  const context = refersToPrevious(message) ? modelHistory(history) : [];
+  const decision = await attempt(message, context);
+  const substantial = message.trim().split(/\s+/).length >= 3;
+  if (decision.action || !substantial || context.length === 0) return decision;
+  return attempt(message, []);
 }

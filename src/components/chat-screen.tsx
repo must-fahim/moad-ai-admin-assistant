@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Button, Drawer } from "antd";
+import { Button } from "antd";
 import toast from "react-hot-toast";
 import Link from "next/link";
+import { ActivityButton } from "@/components/activity-button";
 import { useShellActions } from "@/components/app-shell";
-import { Loader, SkeletonCards } from "@/components/loader";
+import { Loader } from "@/components/loader";
 import type { ChatMessage, ChatPayload } from "@/lib/chat-types";
 
 const STARTERS = [
@@ -20,18 +21,17 @@ export function ChatScreen({ initialDraft = "" }: { initialDraft?: string }) {
   const [historyLoading, setHistoryLoading] = useState(true);
   const [draft, setDraft] = useState(initialDraft);
   const pendingSerial = useRef(0);
+  const sentCount = useRef(0);
   const [busy, setBusy] = useState(false);
-  const [activityOpen, setActivityOpen] = useState(false);
-  const [activityLoading, setActivityLoading] = useState(false);
-  const [events, setEvents] = useState<{ id: string; event: string; summary: string; createdAt: string; adminName: string }[]>([]);
   const transcript = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let cancelled = false;
+    const stamp = sentCount.current;
     fetch("/api/chat")
       .then(async (response) => {
         const body = await response.json();
-        if (!cancelled && response.ok) setMessages(body.messages);
+        if (!cancelled && response.ok && sentCount.current === stamp) setMessages(body.messages);
       })
       .finally(() => {
         if (!cancelled) setHistoryLoading(false);
@@ -50,6 +50,7 @@ export function ChatScreen({ initialDraft = "" }: { initialDraft?: string }) {
   async function send(text: string, resume?: ChatPayload["resume"] & { id?: string }) {
     const message = text.trim();
     if (!message || busy) return;
+    sentCount.current += 1;
     setDraft("");
     setBusy(true);
     pendingSerial.current += 1;
@@ -128,22 +129,6 @@ export function ChatScreen({ initialDraft = "" }: { initialDraft?: string }) {
     setMessages([]);
   }
 
-  async function openActivity() {
-    setActivityOpen(true);
-    setActivityLoading(true);
-    try {
-      const response = await fetch("/api/audit");
-      const body = await response.json();
-      if (!response.ok) {
-        toast.error(body.error || "Could not load the audit log.");
-        return;
-      }
-      setEvents(body.events);
-    } finally {
-      setActivityLoading(false);
-    }
-  }
-
   useShellActions({ onNewChat: clearChat, onPrompt: send });
 
   return (
@@ -155,7 +140,7 @@ export function ChatScreen({ initialDraft = "" }: { initialDraft?: string }) {
             <span>Ask in plain language. A change waits until you confirm one record.</span>
           </div>
           <div className="stage-actions">
-            <Button onClick={openActivity}>Activity</Button>
+            <ActivityButton />
           </div>
         </header>
         <div className="transcript" ref={transcript} aria-busy={historyLoading || busy}>
@@ -221,20 +206,6 @@ export function ChatScreen({ initialDraft = "" }: { initialDraft?: string }) {
           <p className="composer-hint">Enter to send. Shift+Enter for a new line.</p>
         </div>
       </section>
-      <Drawer title="Audit log" open={activityOpen} onClose={() => setActivityOpen(false)} size={460}>
-        {activityLoading ? <SkeletonCards count={4} /> : (
-          <div className="audit-list">
-            {events.length === 0 ? <p className="audit-empty">No confirm, cancel, or refusal has been recorded yet.</p> : null}
-            {events.map((event) => (
-              <article key={event.id} className="audit-item">
-                <strong>{event.event}</strong>
-                <div>{event.adminName} · {new Date(event.createdAt).toLocaleString()}</div>
-                <p>{event.summary}</p>
-              </article>
-            ))}
-          </div>
-        )}
-      </Drawer>
     </>
   );
 }

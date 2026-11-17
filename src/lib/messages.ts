@@ -11,11 +11,18 @@ export function toMessage(row: Row): ChatMessage {
   };
 }
 
+const MESSAGE_COLUMNS = "id, role, content, payload, created_at";
+
+function messageQuery(adminId: string) {
+  return db().from("chat_messages").select(MESSAGE_COLUMNS).eq("admin_id", adminId).order("created_at", { ascending: true }).limit(80);
+}
+
+function pendingQuery(adminId: string) {
+  return db().from("pending_actions").select("id").eq("admin_id", adminId).eq("status", "pending");
+}
+
 export async function listMessages(adminId: string) {
-  const rows = unwrap<Row[]>(
-    await db().from("chat_messages").select("*").eq("admin_id", adminId).order("created_at", { ascending: true }).limit(200),
-  );
-  return rows.map(toMessage);
+  return unwrap<Row[]>(await messageQuery(adminId)).map(toMessage);
 }
 
 export async function addMessage(adminId: string, role: "user" | "assistant", content: string, payload?: ChatPayload | null) {
@@ -30,18 +37,49 @@ export async function addMessage(adminId: string, role: "user" | "assistant", co
 }
 
 export async function recentHistory(adminId: string) {
-  const messages = await listMessages(adminId);
-  return messages.slice(-6).map((message) => ({ role: message.role, content: message.content }));
+  const rows = unwrap<Row[]>(
+    await db()
+      .from("chat_messages")
+      .select("role, content, payload")
+      .eq("admin_id", adminId)
+      .order("created_at", { ascending: false })
+      .limit(8),
+  );
+  const kept: { role: "user" | "assistant"; content: string }[] = [];
+  const chronological = rows.reverse();
+  for (let index = 0; index < chronological.length; index += 1) {
+    const row = chronological[index];
+    const next = chronological[index + 1];
+    const nextKind = (next?.payload as ChatPayload | null)?.kind;
+    if (row.role === "user" && next?.role === "assistant" && nextKind === "clarification") {
+      index += 1;
+      continue;
+    }
+    if (row.role === "assistant" && (row.payload as ChatPayload | null)?.kind === "clarification") continue;
+    kept.push({
+      role: row.role as "user" | "assistant",
+      content: String(row.content ?? ""),
+    });
+  }
+  return kept.slice(-4);
+}
+
+export async function openChat(adminId: string) {
+  const [messageResult, pendingResult] = await Promise.all([messageQuery(adminId), pendingQuery(adminId)]);
+  const messages = unwrap<Row[]>(messageResult);
+  const closed = await expireConfirmations(adminId, messages, unwrap<Row[]>(pendingResult), true);
+  if (closed.length === 0) return messages.map(toMessage);
+  const replacements = new Map(closed.map((message) => [message.id, message]));
+  return messages.map((row) => replacements.get(String(row.id)) ?? toMessage(row));
 }
 
 export async function closeOpenConfirmations(adminId: string, onlyStale = false): Promise<ChatMessage[]> {
-  const pending = unwrap<Row[]>(
-    await db().from("pending_actions").select("id").eq("admin_id", adminId).eq("status", "pending"),
-  );
+  const [messageResult, pendingResult] = await Promise.all([messageQuery(adminId), pendingQuery(adminId)]);
+  return expireConfirmations(adminId, unwrap<Row[]>(messageResult), unwrap<Row[]>(pendingResult), onlyStale);
+}
+
+async function expireConfirmations(adminId: string, messages: Row[], pending: Row[], onlyStale: boolean): Promise<ChatMessage[]> {
   if (pending.length === 0) return [];
-  const messages = unwrap<Row[]>(
-    await db().from("chat_messages").select("*").eq("admin_id", adminId).order("created_at", { ascending: true }).limit(200),
-  );
   const latestId = messages.at(-1)?.id;
   const pendingIds = new Set(pending.map((row) => String(row.id)));
   const targets = messages.filter((row) => {
@@ -60,8 +98,7 @@ export async function closeOpenConfirmations(adminId: string, onlyStale = false)
       .eq("status", "pending"),
   );
 
-  const closed: ChatMessage[] = [];
-  for (const row of targets) {
+  return Promise.all(targets.map(async (row) => {
     const payload = row.payload as ChatPayload;
     const next: ChatPayload = {
       ...payload,
@@ -69,16 +106,15 @@ export async function closeOpenConfirmations(adminId: string, onlyStale = false)
       confirmation: { ...payload.confirmation!, state: "expired" },
     };
     const updated = unwrap<Row>(
-      await db().from("chat_messages").update({ payload: next }).eq("id", row.id).select("*").single(),
+      await db().from("chat_messages").update({ payload: next }).eq("id", row.id).select(MESSAGE_COLUMNS).single(),
     );
-    closed.push(toMessage(updated));
-  }
-  return closed;
+    return toMessage(updated);
+  }));
 }
 
 export async function markConfirmation(adminId: string, pendingActionId: string, state: "confirmed" | "cancelled" | "refused", content: string) {
   const rows = unwrap<Row[]>(
-    await db().from("chat_messages").select("*").eq("admin_id", adminId).order("created_at", { ascending: false }).limit(40),
+    await db().from("chat_messages").select(MESSAGE_COLUMNS).eq("admin_id", adminId).order("created_at", { ascending: false }).limit(20),
   );
   const match = rows.find((row) => row.payload?.confirmation?.pendingActionId === pendingActionId);
   if (!match) return null;
@@ -87,6 +123,6 @@ export async function markConfirmation(adminId: string, pendingActionId: string,
     kind: state === "confirmed" ? "done" : "refused",
     confirmation: { ...(match.payload as ChatPayload).confirmation!, state },
   } satisfies ChatPayload;
-  const updated = unwrap<Row>(await db().from("chat_messages").update({ content, payload }).eq("id", match.id).select("*").single());
+  const updated = unwrap<Row>(await db().from("chat_messages").update({ content, payload }).eq("id", match.id).select(MESSAGE_COLUMNS).single());
   return toMessage(updated);
 }

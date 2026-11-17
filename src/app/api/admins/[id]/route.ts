@@ -1,4 +1,4 @@
-import { requireAdmin } from "@/lib/auth";
+import { clearAdminCache, requireAdmin } from "@/lib/auth";
 import { apiError } from "@/lib/http";
 import { friendlyDbError, getServiceClient } from "@/lib/supabase";
 
@@ -29,6 +29,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       .select("id, name, phone, country, username, is_active, is_primary, created_at")
       .single();
     if (updated.error) throw friendlyDbError(updated.error);
+    clearAdminCache(id);
     return Response.json({ admin: updated.data });
   } catch (error) {
     return apiError(error);
